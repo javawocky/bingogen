@@ -107,7 +107,7 @@ button:hover {
 
 .bingo-card {
   display: grid;
-  gap: 2px;
+  /*gap: 2px;*/
   background-color: white;
   padding: 2px;
   width: 100%;
@@ -124,6 +124,7 @@ button:hover {
   text-align: center;
   font-size: 16px;
   min-height: 80px;
+  border: 1px solid black;
 }
 
 .download-btn {

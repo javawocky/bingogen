@@ -38,7 +38,26 @@ export class AppComponent {
   editingIndex: number = -1;
   editingText: string = '';
 
+  selectedFont: string = 'Arial';
+  fontSize: number = 16;
+  availableFonts: string[] = [
+    'Arial',
+    'Verdana',
+    'Times New Roman',
+    'Georgia',
+    'Courier New',
+    'Comic Sans MS'
+  ];
+
   ngOnInit() {
+    const savedFont = localStorage.getItem('selectedFont');
+    const savedSize = localStorage.getItem('fontSize');
+    if (savedFont) {
+      this.selectedFont = savedFont;
+    }
+    if (savedSize) {
+      this.fontSize = Number(savedSize);
+    }
     // Load items from local storage
     const savedItems = localStorage.getItem('bingoItems');
     if (savedItems) {
@@ -58,7 +77,21 @@ export class AppComponent {
     }
   }
 
+  updateFont(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    this.selectedFont = select.value;
+    this.saveToLocalStorage();
+  }
+
+  updateFontSize(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.fontSize = Number(input.value);
+    this.saveToLocalStorage();
+  }
+
   private saveToLocalStorage() {
+    localStorage.setItem('selectedFont', this.selectedFont);
+    localStorage.setItem('fontSize', this.fontSize.toString());
     localStorage.setItem('bingoItems', JSON.stringify(this.items));
     if (this.watermarkImage) {
       localStorage.setItem('watermarkImage', this.watermarkImage);

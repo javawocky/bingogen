@@ -16,8 +16,8 @@
             <button class="remove-btn" (click)="removeItem(i)">✕</button>
           </ng-container>
           <ng-template #editMode>
-            <input type="text" 
-                   [(ngModel)]="editingText" 
+            <input type="text"
+                   [(ngModel)]="editingText"
                    (keyup.enter)="saveEdit(i)"
                    (keyup.escape)="cancelEdit()"
                    (blur)="saveEdit(i)"
@@ -28,14 +28,30 @@
     </div>
   </div>
 
-  <div class="watermark-controls" *ngIf="items.length > 0">
+  <div class="controls-section" *ngIf="items.length > 0">
+    <div class="font-controls">
+      <div class="control-group">
+        <label for="font-select">Font:</label>
+        <select id="font-select" [value]="selectedFont" (change)="updateFont($event)">
+          <option *ngFor="let font of availableFonts" [value]="font">{{font}}</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="font-size">Font Size:</label>
+        <input type="range" id="font-size" min="8" max="32" step="1"
+               [value]="fontSize" (input)="updateFontSize($event)">
+        <span class="size-display">{{fontSize}}px</span>
+      </div>
+    </div>
+
+    <div class="watermark-controls">
     <div class="control-group">
       <label for="watermark">Watermark Image:</label>
       <input type="file" id="watermark" accept="image/*" (change)="onFileSelected($event)">
     </div>
     <div class="control-group" *ngIf="watermarkImage">
       <label for="opacity">Watermark Opacity:</label>
-      <input type="range" id="opacity" min="0" max="1" step="0.1" [value]="watermarkOpacity" (input)="updateOpacity($event)">
+      <input type="range" id="opacity" min="0" max="1" step="0.01" [value]="watermarkOpacity" (input)="updateOpacity($event)">
       <button class="remove-watermark-btn" (click)="removeWatermark()">Remove Watermark</button>
     </div>
   </div>
@@ -45,7 +61,7 @@
       <div class="watermark" *ngIf="watermarkImage" [style.opacity]="watermarkOpacity">
         <img [src]="watermarkImage" alt="Watermark">
       </div>
-      <div class="bingo-cell" *ngFor="let item of items">
+      <div class="bingo-cell" *ngFor="let item of items" [style.font-family]="selectedFont" [style.font-size.px]="fontSize">
         {{ item }}
       </div>
     </div>
