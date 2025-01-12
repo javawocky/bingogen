@@ -1,3 +1,41 @@
+.watermark-controls {
+  margin: 20px 0;
+}
+
+.control-group {
+  margin: 10px 0;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.bingo-card {
+  position: relative;
+}
+
+.watermark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.watermark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.bingo-cell {
+  position: relative;
+  z-index: 1;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;

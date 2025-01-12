@@ -13,6 +13,23 @@ import html2canvas from 'html2canvas';
   imports: [CommonModule, FormsModule]
 })
 export class AppComponent {
+  watermarkImage: string | null = null;
+  watermarkOpacity: number = 0.3;
+
+  onFileSelected(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.watermarkImage = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  updateOpacity(event: Event) {
+    this.watermarkOpacity = Number((event.target as HTMLInputElement).value);
+  }
   items: string[] = [];
   newItem: string = '';
   gridSize: number = 0;
