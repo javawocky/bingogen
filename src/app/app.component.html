@@ -1,4 +1,8 @@
 <div class="container">
+  <button class="help-button" (click)="toggleHelp()">
+    <i class="fa fa-question-circle"></i>
+  </button>
+  <app-help-modal *ngIf="showHelp" (closeModal)="toggleHelp()"></app-help-modal>
   <div class="input-section">
     <h2>Bingo Card Generator</h2>
     <div class="item-input">

@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { HelpModalComponent } from './help-modal/help-modal.component';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
@@ -10,9 +11,14 @@ import html2canvas from 'html2canvas';
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule]
+  imports: [CommonModule, FormsModule, HelpModalComponent]
 })
 export class AppComponent {
+  showHelp = false;
+
+  toggleHelp() {
+    this.showHelp = !this.showHelp;
+  }
   watermarkImage: string | null = null;
   watermarkOpacity: number = 0.3;
 
