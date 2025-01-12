@@ -36,6 +36,7 @@
     <div class="control-group" *ngIf="watermarkImage">
       <label for="opacity">Watermark Opacity:</label>
       <input type="range" id="opacity" min="0" max="1" step="0.1" [value]="watermarkOpacity" (input)="updateOpacity($event)">
+      <button class="remove-watermark-btn" (click)="removeWatermark()">Remove Watermark</button>
     </div>
   </div>
 

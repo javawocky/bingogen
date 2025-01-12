@@ -22,6 +22,7 @@ export class AppComponent {
       const reader = new FileReader();
       reader.onload = (e) => {
         this.watermarkImage = e.target?.result as string;
+        this.saveToLocalStorage();
       };
       reader.readAsDataURL(file);
     }
@@ -29,25 +30,60 @@ export class AppComponent {
 
   updateOpacity(event: Event) {
     this.watermarkOpacity = Number((event.target as HTMLInputElement).value);
+    this.saveToLocalStorage();
   }
   items: string[] = [];
   newItem: string = '';
   gridSize: number = 0;
   editingIndex: number = -1;
-
   editingText: string = '';
+
+  ngOnInit() {
+    // Load items from local storage
+    const savedItems = localStorage.getItem('bingoItems');
+    if (savedItems) {
+      this.items = JSON.parse(savedItems);
+      this.calculateGridSize();
+    }
+
+    // Load watermark settings from local storage
+    const savedWatermark = localStorage.getItem('watermarkImage');
+    if (savedWatermark) {
+      this.watermarkImage = savedWatermark;
+    }
+    
+    const savedOpacity = localStorage.getItem('watermarkOpacity');
+    if (savedOpacity) {
+      this.watermarkOpacity = Number(savedOpacity);
+    }
+  }
+
+  private saveToLocalStorage() {
+    localStorage.setItem('bingoItems', JSON.stringify(this.items));
+    if (this.watermarkImage) {
+      localStorage.setItem('watermarkImage', this.watermarkImage);
+    }
+    localStorage.setItem('watermarkOpacity', this.watermarkOpacity.toString());
+  }
+
+  removeWatermark() {
+    this.watermarkImage = null;
+    localStorage.removeItem('watermarkImage');
+  }
 
   addItem() {
     if (this.newItem.trim()) {
       this.items.push(this.newItem.trim());
       this.newItem = '';
       this.calculateGridSize();
+      this.saveToLocalStorage();
     }
   }
 
   removeItem(index: number) {
     this.items.splice(index, 1);
     this.calculateGridSize();
+    this.saveToLocalStorage();
   }
 
   calculateGridSize() {
@@ -62,6 +98,7 @@ export class AppComponent {
   saveEdit(index: number) {
     if (this.editingText.trim()) {
       this.items[index] = this.editingText.trim();
+      this.saveToLocalStorage();
     }
     this.editingIndex = -1;
     this.editingText = '';
