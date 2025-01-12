@@ -108,7 +108,7 @@ button:hover {
 .bingo-card {
   display: grid;
   gap: 2px;
-  background-color: black;
+  background-color: white;
   padding: 2px;
   width: 100%;
   max-width: 600px;
@@ -116,7 +116,7 @@ button:hover {
 }
 
 .bingo-cell {
-  background-color: white;
+  /*background-color: white;*/
   display: flex;
   align-items: center;
   justify-content: center;
