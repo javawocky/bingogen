@@ -1,3 +1,61 @@
+.items-grid {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.grid-header {
+  display: contents;
+}
+
+.grid-header > div {
+  font-weight: bold;
+  padding: 8px;
+  background-color: #f5f5f5;
+  text-align: center;
+}
+
+.grid-row {
+  display: contents;
+}
+
+.text-cell, .checkbox-cell, .delete-cell {
+  padding: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.text-cell {
+  justify-content: left;
+}
+
+.checkbox-cell {
+  justify-content: center;
+}
+
+.delete-cell {
+  justify-content: center;
+}
+
+.checked {
+  color: red;
+  text-decoration: line-through;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #ff4444;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 16px;
+}
+
+.remove-btn:hover {
+  color: #ff0000;
+}
+
 .help-button {
   position: absolute;
   top: 20px;

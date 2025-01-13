@@ -13,22 +13,36 @@
     <div class="items-list">
       <h3>Current Items:</h3>
 
-      <ul >
-        <li *ngFor="let item of items; let i = index" >
+      <div class="items-grid">
+        <div class="grid-header">
+          <div>Text</div>
+          <div>Completed</div>
+          <div>Delete</div>
+        </div>
+        <div class="grid-row" *ngFor="let item of items; let i = index">
           <ng-container *ngIf="editingIndex !== i; else editMode">
-            <span (click)="startEditing(i, item)">{{ item }}</span>
-            <button class="remove-btn" (click)="removeItem(i)">✕</button>
+            <div class="text-cell">
+              <span (click)="startEditing(i, item)" [ngClass]="{'checked': item.isChecked}">{{ item.text }}</span>
+            </div>
+            <div class="checkbox-cell">
+              <input type="checkbox" [(ngModel)]="item.isChecked">
+            </div>
+            <div class="delete-cell">
+              <button class="remove-btn" (click)="confirmDelete(i)">✕</button>
+            </div>
           </ng-container>
           <ng-template #editMode>
-            <input type="text"
-                   [(ngModel)]="editingText"
-                   (keyup.enter)="saveEdit(i)"
-                   (keyup.escape)="cancelEdit()"
-                   (blur)="saveEdit(i)"
-                   #editInput>
+            <div class="text-cell" colspan="3">
+              <input type="text"
+                     [(ngModel)]="editingText"
+                     (keyup.enter)="saveEdit(i)"
+                     (keyup.escape)="cancelEdit()"
+                     (blur)="saveEdit(i)"
+                     #editInput>
+            </div>
           </ng-template>
-        </li>
-      </ul>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -66,7 +80,7 @@
         <img [src]="watermarkImage" alt="Watermark">
       </div>
       <div class="bingo-cell" *ngFor="let item of items" [style.font-family]="selectedFont" [style.font-size.px]="fontSize">
-        {{ item }}
+        <span [ngClass]="{'checked': item.isChecked}">{{ item.text }}</span>
       </div>
     </div>
     <button class="download-btn" (click)="downloadBingo()">Download Bingo Card</button>

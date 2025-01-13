@@ -38,7 +38,7 @@ export class AppComponent {
     this.watermarkOpacity = Number((event.target as HTMLInputElement).value);
     this.saveToLocalStorage();
   }
-  items: string[] = [];
+  items: { text: string; isChecked: boolean }[] = [];
   newItem: string = '';
   gridSize: number = 0;
   editingIndex: number = -1;
@@ -112,10 +112,16 @@ export class AppComponent {
 
   addItem() {
     if (this.newItem.trim()) {
-      this.items.push(this.newItem.trim());
+      this.items.push({ text: this.newItem.trim(), isChecked: false });
       this.newItem = '';
       this.calculateGridSize();
       this.saveToLocalStorage();
+    }
+  }
+
+  confirmDelete(index: number) {
+    if (confirm('Are you sure you want to delete this item?')) {
+      this.removeItem(index);
     }
   }
 
@@ -129,14 +135,15 @@ export class AppComponent {
     this.gridSize = Math.ceil(Math.sqrt(this.items.length));
   }
 
-  startEditing(index: number, item: string) {
+  startEditing(index: number, item: { text: string; isChecked: boolean }) {
     this.editingIndex = index;
-    this.editingText = item;
+    this.editingText = item.text;
   }
 
   saveEdit(index: number) {
     if (this.editingText.trim()) {
-      this.items[index] = this.editingText.trim();
+      const isChecked = this.items[index].isChecked;
+      this.items[index] = { text: this.editingText.trim(), isChecked };
       this.saveToLocalStorage();
     }
     this.editingIndex = -1;
