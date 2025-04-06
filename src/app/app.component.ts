@@ -74,6 +74,8 @@ export class AppComponent {
         this.items[index] && this.items[index].isChecked
       ).length;
     });
+    // Sort players by score in descending order
+    this.players.sort((a, b) => b.score - a.score);
     this.saveToLocalStorage();
   }
 
