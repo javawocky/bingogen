@@ -59,7 +59,7 @@
           <div>Delete</div>
         </div>
         <div class="grid-row" *ngFor="let player of players; let i = index">
-          <div class="text-cell">
+          <div class="text-cell" (click)="selectPlayer(player.userId)" [class.active-player]="player.userId === selectedPlayerId">
             <span>{{ player.userId }}</span>
           </div>
           <div class="text-cell">
@@ -106,7 +106,12 @@
       <div class="watermark" *ngIf="watermarkImage" [style.opacity]="watermarkOpacity">
         <img [src]="watermarkImage" alt="Watermark">
       </div>
-      <div class="bingo-cell" *ngFor="let item of items" [style.font-family]="selectedFont" [style.font-size.px]="fontSize">
+      <div class="bingo-cell" *ngFor="let item of items; let i = index" 
+           [style.font-family]="selectedFont" 
+           [style.font-size.px]="fontSize"
+           (click)="onCellClick(i)"
+           [class.selected]="isSquareSelected(i)"
+            [class.player-selected]="isSquareSelectedByCurrentPlayer(i)">
         <span [ngClass]="{'checked': item.isChecked}">{{ item.text }}</span>
       </div>
     </div>

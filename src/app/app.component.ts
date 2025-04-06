@@ -17,6 +17,7 @@ import html2canvas from 'html2canvas';
 export class AppComponent {
   players: Player[] = [];
   newPlayer: string = '';
+  selectedPlayerId: string | null = null;
 
   addPlayer() {
     if (this.newPlayer.trim()) {
@@ -33,8 +34,42 @@ export class AppComponent {
   }
 
   removePlayer(index: number) {
+    if (this.players[index].userId === this.selectedPlayerId) {
+      this.selectedPlayerId = null;
+    }
     this.players.splice(index, 1);
     this.saveToLocalStorage();
+  }
+
+  selectPlayer(userId: string) {
+    this.selectedPlayerId = this.selectedPlayerId === userId ? null : userId;
+  }
+
+  onCellClick(index: number) {
+    if (!this.selectedPlayerId) return;
+    
+    const player = this.players.find(p => p.userId === this.selectedPlayerId);
+    if (!player) return;
+
+    const squareIndex = player.selectedSquares.indexOf(index);
+    if (squareIndex === -1) {
+      player.selectedSquares.push(index);
+    } else {
+      player.selectedSquares.splice(squareIndex, 1);
+    }
+    this.saveToLocalStorage();
+  }
+
+  isSquareSelectedByCurrentPlayer(index: number): boolean {
+    if (!this.selectedPlayerId) return false;
+    const player = this.players.find(p => p.userId === this.selectedPlayerId);
+    return player ? player.selectedSquares.includes(index) : false;
+  }
+
+  isSquareSelected(index: number): boolean {
+    if (!this.selectedPlayerId) return false;
+    const player = this.players.find(p => p.userId === this.selectedPlayerId);
+    return player ? player.selectedSquares.includes(index) : false;
   }
   showHelp = false;
 
