@@ -25,7 +25,7 @@
               <span (click)="startEditing(i, item)" [ngClass]="{'checked': item.isChecked}">{{ item.text }}</span>
             </div>
             <div class="checkbox-cell">
-              <input type="checkbox" [(ngModel)]="item.isChecked">
+              <input type="checkbox" [(ngModel)]="item.isChecked" (ngModelChange)="recalculateScores()">
             </div>
             <div class="delete-cell">
               <button class="remove-btn" (click)="confirmDelete(i)">✕</button>

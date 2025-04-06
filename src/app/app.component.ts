@@ -58,6 +58,22 @@ export class AppComponent {
     } else {
       player.selectedSquares.splice(squareIndex, 1);
     }
+
+    // Update player score based on completed squares
+    player.score = player.selectedSquares.reduce((total, squareIndex) => {
+      const item = this.items[squareIndex];
+      return total + (item && item.isChecked ? 1 : 0);
+    }, 0);
+
+    this.saveToLocalStorage();
+  }
+
+  public recalculateScores() {
+    this.players.forEach(player => {
+      player.score = player.selectedSquares.filter(index => 
+        this.items[index] && this.items[index].isChecked
+      ).length;
+    });
     this.saveToLocalStorage();
   }
 
