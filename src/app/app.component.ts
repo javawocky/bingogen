@@ -21,7 +21,7 @@ export class AppComponent {
 
   addPlayer() {
     if (this.newPlayer.trim()) {
-      this.players.push({ userId: this.newPlayer.trim(), selectedSquares: [] });
+      this.players.push({ userId: this.newPlayer.trim(), selectedSquares: [], score: 0 });
       this.newPlayer = '';
       this.saveToLocalStorage();
     }
@@ -43,6 +43,7 @@ export class AppComponent {
 
   selectPlayer(userId: string) {
     this.selectedPlayerId = this.selectedPlayerId === userId ? null : userId;
+    this.saveToLocalStorage();
   }
 
   onCellClick(index: number) {
@@ -128,6 +129,16 @@ export class AppComponent {
       this.calculateGridSize();
     }
 
+    const savedPlayers = localStorage.getItem('players');
+    if (savedPlayers) {
+      this.players = JSON.parse(savedPlayers);
+    }
+
+    const savedSelectedPlayerId = localStorage.getItem('selectedPlayerId');
+    if (savedSelectedPlayerId) {
+      this.selectedPlayerId = savedSelectedPlayerId;
+    }
+
     // Load watermark settings from local storage
     const savedWatermark = localStorage.getItem('watermarkImage');
     if (savedWatermark) {
@@ -156,6 +167,8 @@ export class AppComponent {
     localStorage.setItem('selectedFont', this.selectedFont);
     localStorage.setItem('fontSize', this.fontSize.toString());
     localStorage.setItem('bingoItems', JSON.stringify(this.items));
+    localStorage.setItem('players', JSON.stringify(this.players));
+    localStorage.setItem('selectedPlayerId', this.selectedPlayerId || '');
     if (this.watermarkImage) {
       localStorage.setItem('watermarkImage', this.watermarkImage);
     }

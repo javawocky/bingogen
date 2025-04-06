@@ -56,6 +56,7 @@
         <div class="grid-header">
           <div>User ID</div>
           <div>Selected Squares</div>
+          <div>Score</div>
           <div>Delete</div>
         </div>
         <div class="grid-row" *ngFor="let player of players; let i = index">
@@ -64,6 +65,9 @@
           </div>
           <div class="text-cell">
             <span>{{ player.selectedSquares.join(',') }}</span>
+          </div>
+          <div class="text-cell">
+            <span>{{ player.score }}</span>
           </div>
           <div class="delete-cell">
             <button class="remove-btn" (click)="confirmDeletePlayer(i)">✕</button>
