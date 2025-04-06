@@ -44,6 +44,33 @@
         </div>
       </div>
     </div>
+
+    <div class="players-list">
+      <h3>Players:</h3>
+      <div class="item-input">
+        <input type="text" [(ngModel)]="newPlayer" (keyup.enter)="addPlayer()" placeholder="Enter Player ID">
+        <button (click)="addPlayer()">Add Player</button>
+      </div>
+
+      <div class="players-grid">
+        <div class="grid-header">
+          <div>User ID</div>
+          <div>Selected Squares</div>
+          <div>Delete</div>
+        </div>
+        <div class="grid-row" *ngFor="let player of players; let i = index">
+          <div class="text-cell">
+            <span>{{ player.userId }}</span>
+          </div>
+          <div class="text-cell">
+            <span>{{ player.selectedSquares.join(',') }}</span>
+          </div>
+          <div class="delete-cell">
+            <button class="remove-btn" (click)="confirmDeletePlayer(i)">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="controls-section" *ngIf="items.length > 0">

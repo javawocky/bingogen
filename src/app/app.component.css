@@ -5,6 +5,13 @@
   margin-top: 20px;
 }
 
+.players-grid {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  margin-top: 20px;
+}
+
 .grid-header {
   display: contents;
 }
@@ -152,12 +159,14 @@ button:hover {
   background-color: #0056b3;
 }
 
-.items-list ul {
+.items-list ul,
+.player-list ul {
   list-style: none;
   padding: 0;
 }
 
-.items-list li {
+.items-list li,
+.player-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -232,14 +241,17 @@ button:hover {
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
-.items-list ul.cdk-drop-list-dragging li:not(.cdk-drag-placeholder) {
+.items-list,.players-list ul.cdk-drop-list-dragging li:not(.cdk-drag-placeholder),
+.player-list ul.cdk-drop-list-dragging li:not(.cdk-drag-placeholder) {
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
-.items-list li span {
+.items-list,.players-list li span,
+.player-list li span {
   cursor: text;
 }
 
-.items-list li {
+.items-list,.players-list li,
+.player-list li {
   cursor: grab;
 }

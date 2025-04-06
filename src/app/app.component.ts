@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { Player } from './models/player.model';
 import { HelpModalComponent } from './help-modal/help-modal.component';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
@@ -14,6 +15,27 @@ import html2canvas from 'html2canvas';
   imports: [CommonModule, FormsModule, HelpModalComponent]
 })
 export class AppComponent {
+  players: Player[] = [];
+  newPlayer: string = '';
+
+  addPlayer() {
+    if (this.newPlayer.trim()) {
+      this.players.push({ userId: this.newPlayer.trim(), selectedSquares: [] });
+      this.newPlayer = '';
+      this.saveToLocalStorage();
+    }
+  }
+
+  confirmDeletePlayer(index: number) {
+    if (confirm('Are you sure you want to delete this player?')) {
+      this.removePlayer(index);
+    }
+  }
+
+  removePlayer(index: number) {
+    this.players.splice(index, 1);
+    this.saveToLocalStorage();
+  }
   showHelp = false;
 
   toggleHelp() {
