@@ -46,9 +46,13 @@ export class AppComponent {
     this.saveToLocalStorage();
   }
 
+  getSelectedSquaresText(selectedSquares: number[]): string {
+    return selectedSquares.map(index => '"'+this.items[index].text+'"').join(', ');
+  }
+
   onCellClick(index: number) {
     if (!this.selectedPlayerId) return;
-    
+
     const player = this.players.find(p => p.userId === this.selectedPlayerId);
     if (!player) return;
 
@@ -70,7 +74,7 @@ export class AppComponent {
 
   public recalculateScores() {
     this.players.forEach(player => {
-      player.score = player.selectedSquares.filter(index => 
+      player.score = player.selectedSquares.filter(index =>
         this.items[index] && this.items[index].isChecked
       ).length;
     });
@@ -162,7 +166,7 @@ export class AppComponent {
     if (savedWatermark) {
       this.watermarkImage = savedWatermark;
     }
-    
+
     const savedOpacity = localStorage.getItem('watermarkOpacity');
     if (savedOpacity) {
       this.watermarkOpacity = Number(savedOpacity);
@@ -243,7 +247,7 @@ export class AppComponent {
     this.editingText = '';
   }
 
-  
+
 
   async downloadBingo() {
     const element = document.getElementById('bingo-card');

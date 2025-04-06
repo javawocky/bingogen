@@ -64,7 +64,7 @@
             <span>{{ player.userId }}</span>
           </div>
           <div class="text-cell">
-            <span>{{ player.selectedSquares.join(',') }}</span>
+            <span>{{ getSelectedSquaresText(player.selectedSquares) }}</span>
           </div>
           <div class="text-cell">
             <span>{{ player.score }}</span>
@@ -110,8 +110,8 @@
       <div class="watermark" *ngIf="watermarkImage" [style.opacity]="watermarkOpacity">
         <img [src]="watermarkImage" alt="Watermark">
       </div>
-      <div class="bingo-cell" *ngFor="let item of items; let i = index" 
-           [style.font-family]="selectedFont" 
+      <div class="bingo-cell" *ngFor="let item of items; let i = index"
+           [style.font-family]="selectedFont"
            [style.font-size.px]="fontSize"
            (click)="onCellClick(i)"
            [class.selected]="isSquareSelected(i)"
@@ -121,4 +121,5 @@
     </div>
     <button class="download-btn" (click)="downloadBingo()">Download Bingo Card</button>
   </div>
+</div>
 </div>
