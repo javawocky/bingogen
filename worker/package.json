@@ -1,0 +1,14 @@
+{
+  "name": "motobingo-api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.108.1",
+    "@cloudflare/workers-types": "^4.20250424.0",
+    "typescript": "^5.9.3"
+  }
+}

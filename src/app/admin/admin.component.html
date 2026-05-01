@@ -1,0 +1,250 @@
+<div class="container">
+  <header class="header">
+    <h1>🏁 MotoBingo Admin</h1>
+    <div class="header-actions">
+      @if (isAdmin) {
+        <button class="btn-small btn-danger" (click)="logout()">Logout</button>
+      } @else {
+        <button class="btn-small" (click)="toggleLogin()">Login</button>
+      }
+    </div>
+  </header>
+
+  <!-- Login modal -->
+  @if (showLogin) {
+    <div class="modal-overlay" (click)="toggleLogin()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <h2>Admin Login</h2>
+        <input type="text" [(ngModel)]="loginUsername" placeholder="Username" (keyup.enter)="login()">
+        <input type="password" [(ngModel)]="loginPassword" placeholder="Password" (keyup.enter)="login()">
+        @if (loginError) { <p class="error">{{ loginError }}</p> }
+        <button (click)="login()">Login</button>
+      </div>
+    </div>
+  }
+
+  @if (!isAdmin) {
+    <div class="empty-state">
+      <p>Please log in to access the admin panel.</p>
+      <button (click)="toggleLogin()">Login</button>
+    </div>
+  } @else {
+
+  <div class="main-layout">
+    <!-- Sidebar: Navigation -->
+    <aside class="sidebar">
+      <h3>Championship</h3>
+      <select class="nav-select" (change)="onChampionshipChange($event)">
+        <option value="" disabled selected>Select championship</option>
+        @for (c of championships; track c.id) {
+          <option [value]="c.id" [selected]="selectedChampionship?.id === c.id">{{ c.name }} ({{ c.shortCode }})</option>
+        }
+      </select>
+
+      @if (selectedChampionship) {
+        <h3>Season</h3>
+        <select class="nav-select" (change)="onSeasonChange($event)">
+          <option value="" disabled selected>Select season</option>
+          @for (opt of seasonOptions; track opt.year) {
+            @if (opt.seasonId) {
+              <option [value]="opt.seasonId" [selected]="selectedSeason?.id === opt.seasonId">{{ opt.year }} @if (opt.active) { (active) }</option>
+            } @else if (isAdmin) {
+              <option [value]="'new:' + opt.year">{{ opt.year }} (create new)</option>
+            }
+          }
+        </select>
+      }
+
+      @if (selectedSeason) {
+        <div class="rounds-header">
+          <h3>Rounds</h3>
+          <div class="rounds-header-actions">
+            @if (isAdmin) {
+              <button class="btn-tiny" (click)="openAddRoundModal()" title="Add new round">+</button>
+            }
+          </div>
+        </div>
+        @for (r of rounds; track r.id) {
+          <div class="round-nav-row">
+            <button class="nav-btn round-btn" [class.active]="activeRound?.id === r.id" (click)="selectRound(r)">
+              <span class="round-btn-name">{{ r.name }}</span>
+              @if (r.id === activePublicRoundId) { <span class="badge badge-live">LIVE</span> }
+            </button>
+            @if (isAdmin) {
+              <button class="btn-tiny" [class.btn-approve]="r.id !== activePublicRoundId" [class.btn-live-active]="r.id === activePublicRoundId" (click)="toggleActiveRound(r.id)" [title]="r.id === activePublicRoundId ? 'Remove from live' : 'Set as live round'">{{ r.id === activePublicRoundId ? '⏹' : '▶' }}</button>
+              <button class="btn-tiny" (click)="openEditRoundModal(r)" title="Edit round">✎</button>
+              <button class="btn-tiny btn-danger" (click)="deleteRound(r.id)" title="Delete round">✕</button>
+            }
+          </div>
+        }
+      }
+    </aside>
+
+    <!-- Main content -->
+    <main class="content">
+      @if (!activeRound) {
+        <div class="empty-state">
+          <p>Select a championship, season, and round to get started.</p>
+        </div>
+      } @else {
+        <div class="round-header">
+          <h2>{{ activeRound.name }}</h2>
+          <span class="event-date">{{ activeRound.eventDate }}</span>
+          @if (isAdmin) {
+            <button class="btn-small" (click)="advancePhase()">Advance Phase →</button>
+          }
+        </div>
+
+        <div class="round-content">
+          <!-- Suggestions panel -->
+          <section class="panel">
+            <h3>Suggestions</h3>
+
+            <!-- Admin suggestion form -->
+            @if (isAdmin) {
+              <div class="admin-form">
+                <input type="text" [(ngModel)]="newSuggestionText" (keyup.enter)="addSuggestion()" placeholder="Add suggestion (auto-approved)" maxlength="200">
+                <button (click)="addSuggestion()">+ Add</button>
+              </div>
+            }
+
+            <div class="suggestions-list">
+              @for (s of activeRound.suggestions; track s.id) {
+                <div class="suggestion-row" [class.selected]="s.selected" [class.completed]="s.completed" [class.pending]="s.status === 'pending'">
+                  @if (editingSuggestionId === s.id) {
+                    <input type="text" [(ngModel)]="editingSuggestionText" (keyup.enter)="saveEditSuggestion(s)" (keyup.escape)="cancelEditSuggestion()" (blur)="saveEditSuggestion(s)" maxlength="200" class="edit-input">
+                  } @else {
+                    <span class="suggestion-text" [class.strikethrough]="s.completed" (dblclick)="startEditSuggestion(s)">{{ s.text }}</span>
+                  }
+                  <span class="vote-count">▲ {{ s.votes?.length || 0 }}</span>
+                  @if (isAdmin) {
+                    <div class="suggestion-actions">
+                      @if (editingSuggestionId !== s.id) {
+                        <button class="btn-tiny" (click)="startEditSuggestion(s)" title="Edit">✎</button>
+                      }
+                      @if (s.status === 'pending') {
+                        <button class="btn-tiny btn-approve" (click)="approveSuggestion(s)" title="Approve">✓</button>
+                        <button class="btn-tiny btn-danger" (click)="rejectSuggestion(s)" title="Reject">✕</button>
+                      }
+                      @if (s.status === 'approved' && (activeRound.phase === 'boards' || activeRound.phase === 'suggestions')) {
+                        <label class="select-toggle">
+                          <input type="checkbox" [checked]="s.selected" (change)="toggleSelected(s)"> Board
+                        </label>
+                      }
+                      @if (activeRound.phase === 'raceday' && s.selected) {
+                        <button class="btn-tiny" [class.btn-complete]="s.completed" (click)="markComplete(s)">{{ s.completed ? '✓ Done' : 'Mark ✓' }}</button>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+            @if (isAdmin && selectedSuggestionCount > 0) {
+              <p class="info">{{ selectedSuggestionCount }} selected for board</p>
+            }
+          </section>
+
+          <!-- Board generation (admin) -->
+          @if (isAdmin && (activeRound.phase === 'boards' || activeRound.phase === 'raceday')) {
+            <section class="panel">
+              <h3>Board Management</h3>
+              @if (activeRound.phase === 'boards') {
+                <button (click)="generateBoards()">Generate Boards</button>
+              }
+
+              <h4>Players in Round</h4>
+              @for (pid of activeRound.playerIds; track pid) {
+                <div class="player-row">
+                  <span>{{ getUserById(pid)?.displayName || pid }} (@{{ getUserById(pid)?.xHandle }})</span>
+                  <button class="btn-tiny btn-danger" (click)="removePlayerFromRound(pid)">✕</button>
+                  <button class="btn-tiny" (click)="viewBoard(pid)">View Board</button>
+                </div>
+              }
+
+              <h4>Add Players</h4>
+              @for (u of users; track u.id) {
+                @if (!isPlayerInRound(u.id)) {
+                  <div class="player-row">
+                    <span>{{ u.displayName }} (@{{ u.xHandle }})</span>
+                    <button class="btn-tiny" (click)="addPlayerToRound(u.id)">+ Add</button>
+                  </div>
+                }
+              }
+            </section>
+          }
+
+          <!-- Admin: User management -->
+          @if (isAdmin) {
+            <section class="panel">
+              <h3>Users</h3>
+              <div class="admin-form">
+                <input type="text" [(ngModel)]="newUserHandle" placeholder="X handle">
+                <input type="text" [(ngModel)]="newUserName" placeholder="Display name">
+                <button (click)="createUser()">+ User</button>
+              </div>
+              @for (u of users; track u.id) {
+                <div class="player-row">
+                  <span>{{ u.displayName }} (@{{ u.xHandle }})</span>
+                  <button class="btn-tiny btn-danger" (click)="deleteUser(u.id)">✕</button>
+                </div>
+              }
+            </section>
+          }
+
+          <!-- Board view -->
+          @if (viewingBoard) {
+            <section class="panel board-panel">
+              <h3>
+                {{ getUserById(viewingBoardUserId!)?.displayName }}'s Board
+                @if (viewingBoard.hasBingo) { <span class="bingo-badge">🎉 BINGO!</span> }
+              </h3>
+              <p>Score: <strong>{{ viewingBoard.score }}</strong></p>
+              <div class="bingo-grid" [style.grid-template-columns]="getGridCols(viewingBoard.boardSize)">
+                @for (sq of viewingBoard.squares; track sq.position) {
+                  <div class="bingo-cell" [class.completed]="sq.completed" [class.free-cell]="sq.suggestionId === 'FREE'">
+                    {{ sq.text }}
+                  </div>
+                }
+              </div>
+              <div class="board-actions">
+                <button class="btn-small" (click)="shareToX(viewingBoardUserId!)">Share to 𝕏</button>
+              </div>
+            </section>
+          }
+
+          <!-- Leaderboard -->
+          @if (leaderboard.length > 0) {
+            <section class="panel">
+              <h3>Leaderboard</h3>
+              <div class="leaderboard">
+                @for (entry of leaderboard; track entry.userId; let i = $index) {
+                  <div class="lb-row" [class.highlighted]="entry.userId === identifiedUserId" (click)="viewBoard(entry.userId)">
+                    <span class="lb-rank">{{ i + 1 }}</span>
+                    <span class="lb-name">{{ entry.displayName }} @if (entry.hasBingo) { <span class="bingo-badge">BINGO!</span> }</span>
+                    <span class="lb-score">{{ entry.score }}</span>
+                  </div>
+                }
+              </div>
+            </section>
+          }
+        </div>
+      }
+    </main>
+  </div>
+  }
+
+  <!-- Round Modal (Add / Edit) -->
+  @if (showRoundModal) {
+    <div class="modal-overlay" (click)="showRoundModal = false">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <h2>{{ editingRoundId ? 'Edit Round' : 'Add Round' }}</h2>
+        <input type="text" [(ngModel)]="newRoundName" placeholder="Round name">
+        <input type="date" [(ngModel)]="newRoundDate">
+        <div class="modal-actions">
+          <button (click)="editingRoundId ? saveEditRound() : createRound()">{{ editingRoundId ? 'Save' : 'Add Round' }}</button>
+          <button class="btn-cancel" (click)="showRoundModal = false">Cancel</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

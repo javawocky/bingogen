@@ -1,0 +1,23 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "4201:4201"
+    volumes:
+      - ./src:/app/src
+      - ./angular.json:/app/angular.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.app.json:/app/tsconfig.app.json
+
+  backend:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./worker/src:/app/src
+      - ./worker/wrangler.toml:/app/wrangler.toml
+      - ./worker/.dev.vars:/app/.dev.vars

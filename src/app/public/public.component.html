@@ -1,0 +1,106 @@
+<div class="container">
+  <header class="header">
+    <h1>🏁 MotoBingo</h1>
+    <div class="header-actions">
+      @if (identifiedUserId) {
+        <span class="identified-badge">@{{ playerHandle }}</span>
+        <button class="btn-small" (click)="clearIdentity()">✕</button>
+      } @else {
+        <input type="text" [(ngModel)]="playerHandle" (keyup.enter)="identifyPlayer()" placeholder="Your X handle" class="handle-input">
+        <button class="btn-small" (click)="identifyPlayer()">Go</button>
+      }
+    </div>
+  </header>
+
+  @if (noRoundMessage) {
+    <div class="empty-state">
+      <p>{{ noRoundMessage }}</p>
+    </div>
+  } @else if (activeRound) {
+    <div class="round-header">
+      @if (championship) { <span class="champ-label">{{ championship.name }}</span> }
+      <h2>{{ activeRound.name }}</h2>
+      <span class="phase-badge phase-{{ activeRound.phase }}">{{ activeRound.phase }}</span>
+      <span class="event-date">{{ activeRound.eventDate }}</span>
+    </div>
+
+    <div class="round-content">
+      <!-- Suggestion form (suggestions phase only) -->
+      @if (activeRound.phase === 'suggestions') {
+        <section class="panel">
+          <h3>Suggest a Bingo Square</h3>
+          <div class="suggestion-form">
+            <input type="text" [(ngModel)]="publicSuggestionText" (keyup.enter)="submitPublicSuggestion()" placeholder="e.g. Rider crashes in whoops section..." maxlength="200">
+            <button (click)="submitPublicSuggestion()">Submit</button>
+          </div>
+          @if (suggestionSubmitted) { <p class="success">Suggestion submitted for review!</p> }
+        </section>
+      }
+
+      <!-- Approved suggestions -->
+      @if (sortedSuggestions.length > 0) {
+        <section class="panel">
+          <h3>Suggestions</h3>
+          <div class="suggestions-list">
+            @for (s of sortedSuggestions; track s.id) {
+              <div class="suggestion-row" [class.completed]="s.completed">
+                <span class="suggestion-text" [class.strikethrough]="s.completed">{{ s.text }}</span>
+                <div class="suggestion-meta">
+                  @if (s.completed) { <span class="badge badge-complete">✓</span> }
+                  @if (activeRound.phase === 'suggestions') {
+                    <button class="vote-btn" [class.voted]="hasVoted(s)" (click)="toggleVote(s)">▲ {{ s.votes?.length || 0 }}</button>
+                  } @else {
+                    <span class="vote-count">▲ {{ s.votes?.length || 0 }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      <div class="two-col">
+        <!-- Board view -->
+        @if (viewingBoard) {
+          <section class="panel board-panel">
+            <h3>
+              {{ getUserById(viewingBoardUserId!)?.displayName }}'s Board
+              @if (viewingBoard.hasBingo) { <span class="bingo-badge">🎉 BINGO!</span> }
+            </h3>
+            <p>Score: <strong>{{ viewingBoard.score }}</strong></p>
+            <div class="bingo-grid" [style.grid-template-columns]="getGridCols(viewingBoard.boardSize)">
+              @for (sq of viewingBoard.squares; track sq.position) {
+                <div class="bingo-cell" [class.completed]="sq.completed" [class.free-cell]="sq.suggestionId === 'FREE'">
+                  {{ sq.text }}
+                </div>
+              }
+            </div>
+            <div class="board-actions">
+              <button class="btn-small" (click)="shareToX(viewingBoardUserId!)">Share to 𝕏</button>
+            </div>
+          </section>
+        }
+
+        <!-- Leaderboard -->
+        @if (leaderboard.length > 0) {
+          <section class="panel">
+            <h3>Leaderboard</h3>
+            <div class="leaderboard">
+              @for (entry of leaderboard; track entry.userId; let i = $index) {
+                <div class="lb-row" [class.highlighted]="entry.userId === identifiedUserId" (click)="viewBoard(entry.userId)">
+                  <span class="lb-rank">{{ i + 1 }}</span>
+                  <span class="lb-name">{{ entry.displayName }} @if (entry.hasBingo) { <span class="bingo-badge">BINGO!</span> }</span>
+                  <span class="lb-score">{{ entry.score }}</span>
+                </div>
+              }
+            </div>
+          </section>
+        }
+      </div>
+    </div>
+  } @else {
+    <div class="empty-state">
+      <p>Loading...</p>
+    </div>
+  }
+</div>

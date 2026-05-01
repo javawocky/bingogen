@@ -1,0 +1,19 @@
+name = "motobingo-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+[dev]
+port = 8787
+
+[[kv_namespaces]]
+binding = "KV"
+id = "placeholder"
+preview_id = "placeholder"
+
+[vars]
+ADMIN_USERNAME = "admin"
+CORS_ORIGIN = "http://localhost:4201"
+
+# Secrets (set via wrangler secret put):
+# ADMIN_PASSWORD
+# JWT_SECRET
