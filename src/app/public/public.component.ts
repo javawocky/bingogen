@@ -1,10 +1,11 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../services/api.service';
 import {
   User, Championship, Season, Round, Suggestion,
-  BoardResponse, LeaderboardEntry
+  BoardResponse, LeaderboardEntry, SeasonLeaderboardEntry
 } from '../models/api.models';
 
 @Component({
@@ -16,6 +17,7 @@ import {
 export class PublicComponent implements OnInit, OnDestroy {
   playerHandle = '';
   identifiedUserId: string | null = null;
+  showHandleInput = true;
 
   users: User[] = [];
   activeRound: Round | null = null;
@@ -23,6 +25,7 @@ export class PublicComponent implements OnInit, OnDestroy {
   season: Season | null = null;
   noRoundMessage = '';
   leaderboard: LeaderboardEntry[] = [];
+  seasonLeaderboard: SeasonLeaderboardEntry[] = [];
   viewingBoard: BoardResponse | null = null;
   viewingBoardUserId: string | null = null;
 
@@ -32,11 +35,22 @@ export class PublicComponent implements OnInit, OnDestroy {
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private route: ActivatedRoute) {}
 
   ngOnInit() {
-    const saved = this.getCookie('motobingo_handle');
-    if (saved) this.playerHandle = saved;
+    // Check query param first, then cookie
+    const handleParam = this.route.snapshot.queryParamMap.get('handle');
+    if (handleParam) {
+      this.playerHandle = handleParam.replace(/^@/, '');
+      this.showHandleInput = false;
+      this.setCookie('motobingo_handle', this.playerHandle, 365);
+    } else {
+      const saved = this.getCookie('motobingo_handle');
+      if (saved) {
+        this.playerHandle = saved;
+        this.showHandleInput = false;
+      }
+    }
     this.voterId = this.getCookie('motobingo_voterid') || '';
     if (!this.voterId) {
       this.voterId = crypto.randomUUID();
@@ -57,6 +71,7 @@ export class PublicComponent implements OnInit, OnDestroy {
         this.noRoundMessage = '';
         this.sortSuggestionsImmediate();
         this.loadLeaderboard();
+        this.loadSeasonLeaderboard();
         if (this.identifiedUserId) this.viewBoard(this.identifiedUserId);
         this.startPolling();
       } else {
@@ -76,10 +91,12 @@ export class PublicComponent implements OnInit, OnDestroy {
   identifyPlayer() {
     const handle = this.playerHandle.trim().replace(/^@/, '');
     if (!handle) return;
+    this.playerHandle = handle;
+    this.showHandleInput = false;
+    this.setCookie('motobingo_handle', handle, 365);
     const user = this.users.find(u => u.xHandle.toLowerCase() === handle.toLowerCase());
     if (user) {
       this.identifiedUserId = user.id;
-      this.setCookie('motobingo_handle', handle, 365);
       if (this.activeRound) this.viewBoard(user.id);
     } else {
       this.identifiedUserId = null;
@@ -89,6 +106,7 @@ export class PublicComponent implements OnInit, OnDestroy {
   clearIdentity() {
     this.identifiedUserId = null;
     this.playerHandle = '';
+    this.showHandleInput = true;
     this.viewingBoard = null;
     this.viewingBoardUserId = null;
     this.deleteCookie('motobingo_handle');
@@ -101,6 +119,7 @@ export class PublicComponent implements OnInit, OnDestroy {
       this.activeRound = r;
       this.sortSuggestionsImmediate();
       this.loadLeaderboard();
+      this.loadSeasonLeaderboard();
       if (this.viewingBoardUserId) this.viewBoard(this.viewingBoardUserId);
     });
   }
@@ -108,6 +127,11 @@ export class PublicComponent implements OnInit, OnDestroy {
   loadLeaderboard() {
     if (!this.activeRound) return;
     this.api.getRoundLeaderboard(this.activeRound.id).subscribe(lb => this.leaderboard = lb);
+  }
+
+  loadSeasonLeaderboard() {
+    if (!this.season) return;
+    this.api.getSeasonLeaderboard(this.season.id).subscribe(lb => this.seasonLeaderboard = lb.slice(0, 100));
   }
 
   viewBoard(userId: string) {
@@ -122,7 +146,7 @@ export class PublicComponent implements OnInit, OnDestroy {
   startPolling() {
     this.stopPolling();
     if (!this.activeRound || this.activeRound.phase === 'complete') return;
-    const interval = this.activeRound.phase === 'raceday' ? 10000 : 30000;
+    const interval = this.activeRound.phase === 'boards' ? 10000 : 30000;
     this.pollInterval = setInterval(() => this.refreshRound(), interval);
   }
 
@@ -185,6 +209,30 @@ export class PublicComponent implements OnInit, OnDestroy {
     const text = `Check out my MotoBingo board for ${this.activeRound?.name || 'the race'}! 🏁`;
     const url = `${window.location.origin}?round=${this.activeRound?.id}&user=${userId}`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+  }
+
+  get boardPreviewSize(): number {
+    return 5;
+  }
+
+  get boardPreviewSquares(): { text: string; isFree: boolean; isEmpty: boolean; completed: boolean }[] {
+    const size = this.boardPreviewSize;
+    const total = size * size;
+    const centre = Math.floor(total / 2);
+    const selected = this.activeRound?.suggestions.filter(s => s.selected) || [];
+    const squares: { text: string; isFree: boolean; isEmpty: boolean; completed: boolean }[] = [];
+    let idx = 0;
+    for (let i = 0; i < total; i++) {
+      if (i === centre) {
+        squares.push({ text: 'FREE', isFree: true, isEmpty: false, completed: false });
+      } else if (idx < selected.length) {
+        squares.push({ text: selected[idx].text, isFree: false, isEmpty: false, completed: selected[idx].completed });
+        idx++;
+      } else {
+        squares.push({ text: '', isFree: false, isEmpty: true, completed: false });
+      }
+    }
+    return squares;
   }
 
   getUserById(id: string): User | undefined {

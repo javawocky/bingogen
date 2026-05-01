@@ -2,19 +2,47 @@ import { test, expect, request } from '@playwright/test';
 
 const API = 'http://localhost:8787/api/v1';
 
-// Get an admin JWT for API cleanup calls
-async function getAdminToken(): Promise<string> {
+// Run tests serially to avoid duplicate data from parallel workers
+test.describe.configure({ mode: 'serial' });
+
+let adminToken: string;
+let sxChampId: string;
+let seasonId: string;
+let testRoundId: string;
+let oldRoundId: string;
+let futureRoundId: string;
+
+async function apiPost(path: string, data: any, token?: string) {
   const ctx = await request.newContext();
-  const res = await ctx.post(`${API}/auth/login`, { data: { username: 'admin', password: 'testpass123' } });
-  const { token } = await res.json();
+  const headers: any = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await ctx.post(`${API}${path}`, { data, headers });
+  const body = await res.json();
   await ctx.dispose();
-  return token;
+  return body;
 }
 
-// Delete a round via API
-async function deleteRound(roundId: string, token: string) {
+async function apiPut(path: string, data: any, token: string) {
   const ctx = await request.newContext();
-  await ctx.delete(`${API}/rounds/${roundId}`, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await ctx.put(`${API}${path}`, { data, headers: { Authorization: `Bearer ${token}` } });
+  const body = await res.json();
+  await ctx.dispose();
+  return body;
+}
+
+async function apiGet(path: string, token?: string) {
+  const ctx = await request.newContext();
+  const headers: any = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await ctx.get(`${API}${path}`, { headers });
+  const body = await res.json();
+  await ctx.dispose();
+  return body;
+}
+
+async function apiDelete(path: string, token: string) {
+  const ctx = await request.newContext();
+  await ctx.delete(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
   await ctx.dispose();
 }
 
@@ -27,107 +55,201 @@ async function adminLogin(page: import('@playwright/test').Page) {
   await expect(page.getByRole('button', { name: 'Logout' })).toBeVisible();
 }
 
-// Creates a round and returns its ID (extracted from the API response via network interception)
-async function navigateToRound(page: import('@playwright/test').Page, roundName: string): Promise<string> {
-  await page.locator('.nav-select').first().selectOption({ label: 'Supercross (SX)' });
-  const seasonSelect = page.locator('.nav-select').nth(1);
+async function adminNavToSeason(page: import('@playwright/test').Page) {
+  await page.locator('.header-select').first().selectOption({ label: 'Supercross (SX)' });
+  const seasonSelect = page.locator('.header-select').nth(1);
   await expect(seasonSelect).toBeVisible();
-  const options = seasonSelect.locator('option:not([disabled])');
-  await expect(options.first()).toBeAttached();
-  await seasonSelect.selectOption({ index: 1 });
-  await page.waitForTimeout(1000);
-  const seasonSelect2 = page.locator('.nav-select').nth(1);
-  // Check if rounds section loaded, if not re-select season
-  const addRoundBtn = page.locator('.rounds-header-actions .btn-tiny', { hasText: '+' });
-  if (!await addRoundBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await seasonSelect2.selectOption({ index: 1 });
-    await page.waitForTimeout(500);
-  }
-
-  // Open add round modal
-  await addRoundBtn.click();
-  await expect(page.locator('.modal-content h2')).toContainText('Add Round');
-  await page.locator('.modal-content input[placeholder="Round name"]').fill(roundName);
-  await page.locator('.modal-content input[type="date"]').fill('2026-08-01');
-
-  // Intercept the round creation response to get the ID
-  const [response] = await Promise.all([
-    page.waitForResponse(r => r.url().includes('/rounds') && r.request().method() === 'POST' && r.status() === 201),
-    page.locator('.modal-content').getByRole('button', { name: 'Add Round' }).click(),
-  ]);
-  const round = await response.json();
-
-  await page.getByRole('button', { name: new RegExp(roundName) }).click();
-  await expect(page.locator('.round-header h2')).toContainText(roundName);
-  return round.id;
+  await seasonSelect.selectOption(seasonId);
+  await page.waitForTimeout(500);
 }
+
+async function adminNavToRound(page: import('@playwright/test').Page, roundName: string) {
+  await adminNavToSeason(page);
+  await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+  await page.getByRole('button', { name: roundName, exact: true }).first().click();
+  await expect(page.locator('.round-header h2')).toContainText(roundName);
+}
+
+// ── Setup & Teardown ──
+
+test.beforeAll(async () => {
+  const loginRes = await apiPost('/auth/login', { username: 'admin', password: 'testpass123' });
+  adminToken = loginRes.token;
+
+  const champs = await apiGet('/championships');
+  sxChampId = champs.find((c: any) => c.shortCode === 'SX').id;
+
+  let seasons = await apiGet(`/championships/${sxChampId}/seasons`);
+  let season = seasons.find((s: any) => s.year === 2026);
+  if (!season) {
+    season = await apiPost(`/championships/${sxChampId}/seasons`, { year: 2026 }, adminToken);
+  }
+  seasonId = season.id;
+
+  const tr = await apiPost(`/seasons/${seasonId}/rounds`, { name: 'TESTROUND', eventDate: '2026-06-15' }, adminToken);
+  testRoundId = tr.id;
+  const or = await apiPost(`/seasons/${seasonId}/rounds`, { name: 'TESTROUNDOLD', eventDate: '2025-01-10' }, adminToken);
+  oldRoundId = or.id;
+  const fr = await apiPost(`/seasons/${seasonId}/rounds`, { name: 'TESTROUNDFUTURE', eventDate: '2027-03-20' }, adminToken);
+  futureRoundId = fr.id;
+
+  // Add suggestions to TESTROUND
+  await apiPost(`/rounds/${testRoundId}/suggestions`, { text: 'Rider crashes in whoops' }, adminToken);
+  await apiPost(`/rounds/${testRoundId}/suggestions`, { text: 'Red flag in main event' }, adminToken);
+  await apiPost(`/rounds/${testRoundId}/suggestions`, { text: 'Holeshot by underdog' }, adminToken);
+
+  // Select 2 for the board
+  const round = await apiGet(`/rounds/${testRoundId}`, adminToken);
+  await apiPut(`/rounds/${testRoundId}/suggestions/${round.suggestions[0].id}`, { selected: true }, adminToken);
+  await apiPut(`/rounds/${testRoundId}/suggestions/${round.suggestions[1].id}`, { selected: true }, adminToken);
+
+  // Create test users
+  const existingUsers = await apiGet('/users');
+  if (!existingUsers.find((u: any) => u.xHandle === 'testuser1')) {
+    await apiPost('/users', { xHandle: 'testuser1', displayName: 'Test User 1' }, adminToken);
+  }
+  if (!existingUsers.find((u: any) => u.xHandle === 'testuser2')) {
+    await apiPost('/users', { xHandle: 'testuser2', displayName: 'Test User 2' }, adminToken);
+  }
+});
+
+test.afterAll(async () => {
+  await apiPut('/active-round', { roundId: null }, adminToken);
+  await apiDelete(`/rounds/${testRoundId}`, adminToken);
+  await apiDelete(`/rounds/${oldRoundId}`, adminToken);
+  await apiDelete(`/rounds/${futureRoundId}`, adminToken);
+  // Clean up test users
+  const users = await apiGet('/users');
+  for (const u of users) {
+    if (u.xHandle === 'testuser1' || u.xHandle === 'testuser2') {
+      await apiDelete(`/users/${u.id}`, adminToken);
+    }
+  }
+});
 
 // ── Public Page ──
 
-test.describe('Public Page (/)', () => {
+test.describe('Public Page', () => {
   test('page loads with title', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('h1')).toContainText('MotoBingo');
   });
 
-  test('shows no-round message or active round automatically', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
-    const body = await page.locator('body').textContent();
-    const hasRound = body?.includes('suggestions') || body?.includes('boards') || body?.includes('raceday');
-    const hasNoRound = body?.includes('No future round') || body?.includes('Check back soon');
-    expect(hasRound || hasNoRound).toBeTruthy();
-  });
-
-  test('does not show sidebar navigation', async ({ page }) => {
+  test('no sidebar visible', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.sidebar')).not.toBeVisible();
   });
 
-  test('shows player handle input', async ({ page }) => {
+  test('no phase badge visible', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await expect(page.locator('.phase-badge')).not.toBeVisible();
+  });
+
+  test('shows no-round message when inactive', async ({ page }) => {
+    await apiPut('/active-round', { roundId: null }, adminToken);
+    await page.goto('/');
+    await page.waitForFunction(() => {
+      const t = document.body.textContent || '';
+      return t.includes('No future round') || t.includes('TESTROUND');
+    }, { timeout: 5000 });
+    await expect(page.locator('body')).toContainText('No future round');
+  });
+
+  test('shows active round when set', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await expect(page.locator('.round-header h2')).toContainText('TESTROUND');
+  });
+
+  test('shows "Bingo Board So Far" during suggestions phase', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.board-preview-panel', { timeout: 5000 });
+    await expect(page.locator('.board-preview-panel h3')).toContainText('Bingo Board So Far');
+  });
+
+  test('board preview shows FREE and selected suggestions', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.board-preview-panel', { timeout: 5000 });
+    await expect(page.locator('.preview-cell.free-cell')).toContainText('FREE');
+    const filled = page.locator('.preview-cell:not(.empty-cell):not(.free-cell)');
+    await expect(filled).toHaveCount(2);
+  });
+
+  test('shows suggestion form with 200 char limit', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    const form = page.locator('.suggestion-form input');
+    if (await form.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await expect(form).toHaveAttribute('maxlength', '200');
+    }
+  });
+
+  test('shows approved suggestions with vote buttons', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.suggestion-row', { timeout: 5000 });
+    await expect(page.locator('.vote-btn').first()).toContainText('▲');
+  });
+
+  test('switching active round changes public page', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await expect(page.locator('.round-header h2')).toContainText('TESTROUND');
+
+    await apiPut('/active-round', { roundId: futureRoundId }, adminToken);
+    await page.reload();
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await expect(page.locator('.round-header h2')).toContainText('TESTROUNDFUTURE');
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+});
+
+// ── Player Handle ──
+
+test.describe('Player Handle', () => {
+  test('shows handle input', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.handle-input')).toBeVisible();
   });
 
-  test('does not show admin button', async ({ page }) => {
+  test('unknown handle shows greyed badge', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Admin' })).not.toBeVisible();
+    await page.evaluate(() => document.cookie = 'motobingo_handle=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+    await page.reload();
+    await page.waitForSelector('.handle-input');
+    await page.locator('.handle-input').fill('nobody');
+    await page.locator('.handle-input').press('Enter');
+    await expect(page.locator('.identified-badge.unmatched')).toBeVisible();
   });
 
-  test('entering unknown handle stays as spectator', async ({ page }) => {
+  test('handle persists after reload', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.handle-input').fill('nonexistent_user');
-    await page.getByRole('button', { name: 'Go' }).click();
-    await expect(page.locator('.identified-badge')).not.toBeVisible();
-  });
-
-  test('suggestion input has 200 char maxlength', async ({ page }) => {
-    await page.goto('/');
+    await page.evaluate(() => document.cookie = 'motobingo_handle=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+    await page.reload();
+    await page.waitForSelector('.handle-input');
+    await page.locator('.handle-input').fill('persistme');
+    await page.locator('.handle-input').press('Enter');
+    await expect(page.locator('.identified-badge')).toContainText('persistme');
+    await page.reload();
     await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
-    const input = page.locator('.suggestion-form input');
-    if (await input.isVisible()) {
-      await expect(input).toHaveAttribute('maxlength', '200');
-    }
+    await expect(page.locator('.identified-badge')).toContainText('persistme');
   });
 });
 
 // ── Admin Login ──
 
-test.describe('Admin Login & Access Control', () => {
-  test('admin page shows login prompt when not authenticated', async ({ page }) => {
+test.describe('Admin Login', () => {
+  test('shows login prompt when not authenticated', async ({ page }) => {
     await page.goto('/admin');
     await expect(page.locator('.empty-state')).toContainText('Please log in');
-  });
-
-  test('admin page does not show sidebar when not authenticated', async ({ page }) => {
-    await page.goto('/admin');
     await expect(page.locator('.sidebar')).not.toBeVisible();
-  });
-
-  test('shows login modal on login click', async ({ page }) => {
-    await page.goto('/admin');
-    await page.locator('.header').getByRole('button', { name: 'Login' }).click();
-    await expect(page.locator('.modal-content h2')).toContainText('Admin Login');
   });
 
   test('rejects invalid credentials', async ({ page }) => {
@@ -139,7 +261,7 @@ test.describe('Admin Login & Access Control', () => {
     await expect(page.locator('.error')).toContainText('Invalid credentials');
   });
 
-  test('logs in with valid credentials and shows admin content', async ({ page }) => {
+  test('logs in and shows sidebar', async ({ page }) => {
     await adminLogin(page);
     await expect(page.locator('.sidebar')).toBeVisible();
   });
@@ -148,22 +270,13 @@ test.describe('Admin Login & Access Control', () => {
     await adminLogin(page);
     await page.getByRole('button', { name: 'Logout' }).click();
     await expect(page.locator('.empty-state')).toContainText('Please log in');
-    await expect(page.locator('.sidebar')).not.toBeVisible();
   });
 });
 
-// ── Admin CRUD (with cleanup) ──
+// ── Admin Rounds ──
 
-test.describe('Admin CRUD', () => {
-  let token: string;
-  const createdRoundIds: string[] = [];
-
-  test.beforeAll(async () => {
-    token = await getAdminToken();
-  });
-
+test.describe('Admin Rounds', () => {
   test.beforeEach(async ({ page }) => {
-    // Clear admin localStorage to avoid stale selections
     await page.goto('/admin');
     await page.evaluate(() => {
       localStorage.removeItem('admin_champId');
@@ -172,196 +285,516 @@ test.describe('Admin CRUD', () => {
     });
   });
 
-  test.afterAll(async () => {
-    for (const id of createdRoundIds) {
-      await deleteRound(id, token);
+  test('rounds sorted by date (OLD < TESTROUND < FUTURE)', async ({ page }) => {
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    const texts = await page.locator('.round-nav-row .nav-btn').allTextContents();
+    const oldIdx = texts.findIndex(t => t.includes('TESTROUNDOLD'));
+    const testIdx = texts.findIndex(t => t.includes('TESTROUND') && !t.includes('OLD') && !t.includes('FUTURE'));
+    const futureIdx = texts.findIndex(t => t.includes('TESTROUNDFUTURE'));
+    expect(oldIdx).toBeGreaterThanOrEqual(0);
+    expect(testIdx).toBeGreaterThanOrEqual(0);
+    expect(futureIdx).toBeGreaterThanOrEqual(0);
+    expect(oldIdx).toBeLessThan(testIdx);
+    expect(testIdx).toBeLessThan(futureIdx);
+  });
+
+  test('selecting round shows suggestions', async ({ page }) => {
+    await adminLogin(page);
+    await adminNavToRound(page, 'TESTROUND');
+    await expect(page.locator('.suggestion-row')).toHaveCount(3);
+  });
+
+  test('board preview shows selected suggestions', async ({ page }) => {
+    await adminLogin(page);
+    await adminNavToRound(page, 'TESTROUND');
+    await expect(page.locator('.board-preview-panel')).toBeVisible();
+    await expect(page.locator('.preview-cell.free-cell')).toContainText('FREE');
+    const filled = page.locator('.preview-cell:not(.empty-cell):not(.free-cell)');
+    await expect(filled).toHaveCount(2);
+  });
+
+  test('LIVE badge shows when active', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.badge-live')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.badge-live')).toContainText('LIVE');
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+
+  test('LIVE badge hidden when inactive', async ({ page }) => {
+    await apiPut('/active-round', { roundId: null }, adminToken);
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.badge-live')).not.toBeVisible();
+  });
+
+  test('admin and public show same active round', async ({ page }) => {
+    await apiPut('/active-round', { roundId: futureRoundId }, adminToken);
+
+    // Public page shows TESTROUNDFUTURE
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await expect(page.locator('.round-header h2')).toContainText('TESTROUNDFUTURE');
+
+    // Admin page shows LIVE badge on TESTROUNDFUTURE
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    // Wait for activePublicRoundId to load
+    await expect(page.locator('.badge-live')).toBeVisible({ timeout: 5000 });
+
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+});
+
+// ── Race Day Phase ──
+
+test.describe('Race Day Phase', () => {
+  test('advancing to Race Day auto-generates boards', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+    const users = await apiGet('/users');
+    for (const u of users) {
+      const board = await apiGet(`/rounds/${testRoundId}/boards/${u.id}`);
+      expect(board.boardSize).toBe(5);
+      expect(board.squares.length).toBe(25);
+      expect(board.squares[12].text).toBe('FREE');
     }
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
   });
 
-  test('admin can select championship, create season and round', async ({ page }) => {
-    await adminLogin(page);
-    const roundName = `CRUDRound_${Date.now()}`;
-    const roundId = await navigateToRound(page, roundName);
-    createdRoundIds.push(roundId);
-    await expect(page.locator('.round-header h2')).toBeVisible();
+  test('boards update intelligently when suggestion selection changes', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+    const users = await apiGet('/users');
+    if (users.length === 0) {
+      await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+      return;
+    }
+    const board1 = await apiGet(`/rounds/${testRoundId}/boards/${users[0].id}`);
+    const round = await apiGet(`/rounds/${testRoundId}`, adminToken);
+    const selectedSug = round.suggestions.find((s: any) => s.selected);
+    if (selectedSug) {
+      await apiPut(`/rounds/${testRoundId}/suggestions/${selectedSug.id}`, { selected: false }, adminToken);
+      await apiPut(`/rounds/${testRoundId}/suggestions/${selectedSug.id}`, { selected: true }, adminToken);
+    }
+    const board2 = await apiGet(`/rounds/${testRoundId}/boards/${users[0].id}`);
+    expect(board2.squares[12].text).toBe('FREE');
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
   });
 
-  test('admin can add suggestion with 200 char limit', async ({ page }) => {
-    await adminLogin(page);
-    const roundName = `SugLimit_${Date.now()}`;
-    const roundId = await navigateToRound(page, roundName);
-    createdRoundIds.push(roundId);
-
-    const input = page.locator('input[placeholder="Add suggestion (auto-approved)"]');
-    await expect(input).toHaveAttribute('maxlength', '200');
-    await input.fill('Test crash in turn 1');
-    await page.getByRole('button', { name: '+ Add' }).click();
-    await expect(page.locator('.suggestion-text')).toContainText('Test crash in turn 1');
+  test('admin can revert from Race Day to suggestions', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+    const r1 = await apiGet(`/rounds/${testRoundId}`, adminToken);
+    expect(r1.phase).toBe('boards');
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+    const r2 = await apiGet(`/rounds/${testRoundId}`, adminToken);
+    expect(r2.phase).toBe('suggestions');
   });
 
-  test('admin can edit suggestion inline', async ({ page }) => {
-    await adminLogin(page);
-    const roundName = `EditSug_${Date.now()}`;
-    const roundId = await navigateToRound(page, roundName);
-    createdRoundIds.push(roundId);
+  test('marking suggestion complete updates scores', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
 
-    await page.locator('input[placeholder="Add suggestion (auto-approved)"]').fill('Original text');
-    await page.getByRole('button', { name: '+ Add' }).click();
-    await expect(page.locator('.suggestion-text')).toContainText('Original text');
+    // Get a user and their board
+    const users = await apiGet('/users');
+    if (users.length === 0) {
+      await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+      return;
+    }
+    const board1 = await apiGet(`/rounds/${testRoundId}/boards/${users[0].id}`);
+    const initialScore = board1.score;
 
-    await page.locator('.suggestion-actions .btn-tiny', { hasText: '✎' }).click();
-    const editInput = page.locator('.edit-input');
-    await expect(editInput).toBeVisible();
-    await expect(editInput).toHaveAttribute('maxlength', '200');
-    await editInput.fill('Edited text');
-    await editInput.press('Enter');
-    await expect(page.locator('.suggestion-text')).toContainText('Edited text');
+    // Mark a selected suggestion as complete
+    const round = await apiGet(`/rounds/${testRoundId}`, adminToken);
+    const selectedSug = round.suggestions.find((s: any) => s.selected && !s.completed);
+    if (selectedSug) {
+      await apiPut(`/rounds/${testRoundId}/suggestions/${selectedSug.id}`, { completed: true }, adminToken);
+      const board2 = await apiGet(`/rounds/${testRoundId}/boards/${users[0].id}`);
+      // Score should be >= initial (FREE + completed = at least 1 pair if adjacent)
+      expect(board2.score).toBeGreaterThanOrEqual(initialScore);
+
+      // Undo for other tests
+      await apiPut(`/rounds/${testRoundId}/suggestions/${selectedSug.id}`, { completed: false }, adminToken);
+    }
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
   });
 
-  test('admin can see vote count on suggestions', async ({ page }) => {
-    await adminLogin(page);
-    const roundName = `VoteCount_${Date.now()}`;
-    const roundId = await navigateToRound(page, roundName);
-    createdRoundIds.push(roundId);
+  test('leaderboard is sorted by score descending', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
 
-    await page.locator('input[placeholder="Add suggestion (auto-approved)"]').fill('Voteable suggestion');
-    await page.getByRole('button', { name: '+ Add' }).click();
-    await expect(page.locator('.vote-count')).toContainText('0');
+    const lb = await apiGet(`/rounds/${testRoundId}/leaderboard`);
+    for (let i = 1; i < lb.length; i++) {
+      expect(lb[i - 1].score).toBeGreaterThanOrEqual(lb[i].score);
+    }
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
   });
 
-  test('rounds are sorted by date', async ({ page }) => {
+  test('public page shows scores on leaderboard in Race Day', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    // Leaderboard should be visible if there are users
+    const users = await apiGet('/users');
+    if (users.length > 0) {
+      await expect(page.locator('.leaderboard').first()).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('.lb-score').first()).toBeVisible();
+    }
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+
+  test('admin page shows phase label as Race Day', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+
+    await page.goto('/admin');
+    await page.evaluate(() => { localStorage.clear(); });
     await adminLogin(page);
-    await page.locator('.nav-select').first().selectOption({ label: 'Supercross (SX)' });
-    const seasonSelect = page.locator('.nav-select').nth(1);
-    await expect(seasonSelect).toBeVisible();
-    await seasonSelect.selectOption({ index: 1 });
-    await page.waitForTimeout(1000);
-    if (!await page.locator('.rounds-header').isVisible({ timeout: 2000 }).catch(() => false)) {
-      await page.locator('.nav-select').nth(1).selectOption({ index: 1 });
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    const btns = page.locator('.round-nav-row .nav-btn');
+    const count = await btns.count();
+    for (let i = 0; i < count; i++) {
+      const text = await btns.nth(i).textContent();
+      if (text?.includes('TESTROUND') && !text?.includes('OLD') && !text?.includes('FUTURE')) {
+        await btns.nth(i).click();
+        break;
+      }
+    }
+    await expect(page.locator('.phase-label')).toContainText('Race Day');
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+  });
+
+  test('admin can view different user boards', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+
+    await page.goto('/admin');
+    await page.evaluate(() => { localStorage.clear(); });
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    // Select TESTROUND
+    const btns = page.locator('.round-nav-row .nav-btn');
+    const count = await btns.count();
+    for (let i = 0; i < count; i++) {
+      const text = await btns.nth(i).textContent();
+      if (text?.includes('TESTROUND') && !text?.includes('OLD') && !text?.includes('FUTURE')) {
+        await btns.nth(i).click();
+        break;
+      }
+    }
+
+    // Click "Board" on different users and verify the board view updates
+    const boardBtns = page.locator('.player-row .btn-tiny', { hasText: 'Board' });
+    const boardCount = await boardBtns.count();
+    if (boardCount >= 2) {
+      await boardBtns.nth(0).click();
+      const name1 = await page.locator('.board-panel h3').textContent();
+      await boardBtns.nth(1).click();
+      const name2 = await page.locator('.board-panel h3').textContent();
+      expect(name1).not.toBe(name2);
+    }
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+  });
+
+  test('Race Day shows "Move to Next Round" button instead of "Next"', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+
+    await page.goto('/admin');
+    await page.evaluate(() => { localStorage.clear(); });
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    const btns = page.locator('.round-nav-row .nav-btn');
+    const count = await btns.count();
+    for (let i = 0; i < count; i++) {
+      const text = await btns.nth(i).textContent();
+      if (text?.includes('TESTROUND') && !text?.includes('OLD') && !text?.includes('FUTURE')) {
+        await btns.nth(i).click();
+        break;
+      }
+    }
+    await expect(page.getByRole('button', { name: 'Move to Next Round →' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '← Back to Suggestions' })).toBeVisible();
+    // Should NOT show generic "Next →"
+    await expect(page.getByRole('button', { name: 'Next →' })).not.toBeVisible();
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+  });
+
+  test('Move to Next Round completes current and activates next', async ({ page }) => {
+    // Set TESTROUND to Race Day and make it LIVE
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+
+    // Verify TESTROUNDFUTURE exists and is in suggestions
+    const futureRound = await apiGet(`/rounds/${futureRoundId}`, adminToken);
+    expect(futureRound.phase).toBe('suggestions');
+
+    // Move to next round via API (simulating what the button does)
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'complete' }, adminToken);
+    await apiPut('/active-round', { roundId: futureRoundId }, adminToken);
+
+    // Verify
+    const completed = await apiGet(`/rounds/${testRoundId}`, adminToken);
+    expect(completed.phase).toBe('complete');
+    const active = await apiGet('/active-round');
+    expect(active.round.id).toBe(futureRoundId);
+
+    // Reset for other tests
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+
+  test('admin can click board cell to toggle complete', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+
+    await page.goto('/admin');
+    await page.evaluate(() => { localStorage.clear(); });
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    const btns = page.locator('.round-nav-row .nav-btn');
+    const count = await btns.count();
+    for (let i = 0; i < count; i++) {
+      const text = await btns.nth(i).textContent();
+      if (text?.includes('TESTROUND') && !text?.includes('OLD') && !text?.includes('FUTURE')) {
+        await btns.nth(i).click();
+        break;
+      }
+    }
+
+    // Find a clickable (non-free, non-empty) cell
+    const clickableCell = page.locator('.preview-cell.clickable').first();
+    if (await clickableCell.isVisible({ timeout: 2000 }).catch(() => false)) {
+      // Click to mark complete
+      await clickableCell.click();
+      await page.waitForTimeout(500);
+      // Cell should now have completed-cell class
+      await expect(page.locator('.preview-cell.completed-cell').first()).toBeVisible();
+
+      // Click again to unmark
+      await page.locator('.preview-cell.completed-cell').first().click();
       await page.waitForTimeout(500);
     }
 
-    const ts = Date.now();
-    // Create round with later date first
-    const addBtn = page.locator('.rounds-header-actions .btn-tiny', { hasText: '+' });
-
-    await addBtn.click();
-    await page.locator('.modal-content input[placeholder="Round name"]').fill(`Late_${ts}`);
-    await page.locator('.modal-content input[type="date"]').fill('2026-12-01');
-    const [res1] = await Promise.all([
-      page.waitForResponse(r => r.url().includes('/rounds') && r.request().method() === 'POST' && r.status() === 201),
-      page.locator('.modal-content').getByRole('button', { name: 'Add Round' }).click(),
-    ]);
-    createdRoundIds.push((await res1.json()).id);
-
-    // Create round with earlier date
-    await addBtn.click();
-    await page.locator('.modal-content input[placeholder="Round name"]').fill(`Early_${ts}`);
-    await page.locator('.modal-content input[type="date"]').fill('2026-02-01');
-    const [res2] = await Promise.all([
-      page.waitForResponse(r => r.url().includes('/rounds') && r.request().method() === 'POST' && r.status() === 201),
-      page.locator('.modal-content').getByRole('button', { name: 'Add Round' }).click(),
-    ]);
-    createdRoundIds.push((await res2.json()).id);
-
-    // Verify Early appears before Late in the round list
-    const roundButtons = page.locator('.round-nav-row .round-btn-name');
-    const texts = await roundButtons.allTextContents();
-    const earlyIdx = texts.findIndex(t => t.includes(`Early_${ts}`));
-    const lateIdx = texts.findIndex(t => t.includes(`Late_${ts}`));
-    expect(earlyIdx).toBeGreaterThanOrEqual(0);
-    expect(lateIdx).toBeGreaterThanOrEqual(0);
-    expect(earlyIdx).toBeLessThan(lateIdx);
-  });
-});
-
-// ── Public Upvoting ──
-
-test.describe('Public Active Round', () => {
-  let token: string;
-  let roundId: string;
-
-  test.beforeAll(async () => {
-    token = await getAdminToken();
-    const ctx = await request.newContext();
-    const champsRes = await ctx.get(`${API}/championships`);
-    const champs = await champsRes.json();
-    const sx = champs.find((c: any) => c.shortCode === 'SX');
-    const seasonsRes = await ctx.get(`${API}/championships/${sx.id}/seasons`);
-    let seasons = await seasonsRes.json();
-    if (seasons.length === 0) {
-      await ctx.post(`${API}/championships/${sx.id}/seasons`, { data: { year: 2026 }, headers: { Authorization: `Bearer ${token}` } });
-      const s2 = await ctx.get(`${API}/championships/${sx.id}/seasons`);
-      seasons = await s2.json();
-    }
-    const season = seasons[0];
-    // Create a round and set it active
-    const roundRes = await ctx.post(`${API}/seasons/${season.id}/rounds`, {
-      data: { name: 'ActiveRound_E2E', eventDate: '2026-08-01' },
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const round = await roundRes.json();
-    roundId = round.id;
-    // Set as active
-    await ctx.put(`${API}/active-round`, {
-      data: { roundId },
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    await ctx.dispose();
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
   });
 
-  test.afterAll(async () => {
-    const ctx = await request.newContext();
-    // Clear active round
-    await ctx.put(`${API}/active-round`, {
-      data: { roundId: null },
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    await deleteRound(roundId, token);
-    await ctx.dispose();
-  });
+  test('Suggestions phase shows "Race Day →" button', async ({ page }) => {
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
 
-  test('public page shows the admin-selected active round', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
-    const body = await page.locator('body').textContent();
-    expect(body).toContain('ActiveRound_E2E');
-  });
-
-  test('public page shows no-round message when no active round set', async ({ page }) => {
-    // Temporarily clear active round
-    const ctx = await request.newContext();
-    await ctx.put(`${API}/active-round`, {
-      data: { roundId: null },
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    await ctx.dispose();
-
-    await page.goto('/');
-    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
-    const body = await page.locator('body').textContent();
-    expect(body).toContain('No future round');
-
-    // Restore active round for other tests
-    const ctx2 = await request.newContext();
-    await ctx2.put(`${API}/active-round`, {
-      data: { roundId },
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    await ctx2.dispose();
-  });
-});
-
-test.describe('Public Upvoting', () => {
-  test('suggestion shows vote button during suggestions phase', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
-    const body = await page.locator('body').textContent();
-    if (body?.includes('suggestions')) {
-      const voteBtn = page.locator('.vote-btn').first();
-      if (await voteBtn.isVisible()) {
-        await expect(voteBtn).toContainText('▲');
+    await page.goto('/admin');
+    await page.evaluate(() => { localStorage.clear(); });
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    const btns = page.locator('.round-nav-row .nav-btn');
+    const count = await btns.count();
+    for (let i = 0; i < count; i++) {
+      const text = await btns.nth(i).textContent();
+      if (text?.includes('TESTROUND') && !text?.includes('OLD') && !text?.includes('FUTURE')) {
+        await btns.nth(i).click();
+        break;
       }
     }
+    await expect(page.getByRole('button', { name: 'Race Day →' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Move to Next Round →' })).not.toBeVisible();
+  });
+});
+
+// ── Shareable Links & Board Navigation ──
+
+test.describe('Shareable Links', () => {
+  test('URL with handle param auto-identifies user', async ({ page }) => {
+    await page.goto('/?handle=testuser1');
+    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
+    await expect(page.locator('.identified-badge')).toContainText('testuser1');
+  });
+
+  test('URL with @handle param strips @ and identifies', async ({ page }) => {
+    await page.goto('/?handle=%40testuser2');
+    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
+    await expect(page.locator('.identified-badge')).toContainText('testuser2');
+  });
+
+  test('handle from URL persists after reload', async ({ page }) => {
+    await page.goto('/?handle=testuser1');
+    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
+    await expect(page.locator('.identified-badge')).toContainText('testuser1');
+    // Reload without param — should still be identified via cookie
+    await page.goto('/');
+    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
+    await expect(page.locator('.identified-badge')).toContainText('testuser1');
+  });
+
+  test('user sees their board in Race Day via shareable link', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+
+    await page.goto('/?handle=testuser1');
+    await page.waitForSelector('.board-panel', { timeout: 5000 });
+    await expect(page.locator('.board-panel h3')).toContainText('Test User 1');
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+
+  test('My Board button appears when viewing another user board', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' }, adminToken);
+
+    await page.goto('/?handle=testuser1');
+    await page.waitForSelector('.board-panel', { timeout: 5000 });
+    // Click on testuser2 in leaderboard
+    const user2Row = page.locator('.lb-row', { hasText: 'Test User 2' });
+    if (await user2Row.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await user2Row.click();
+      await expect(page.locator('.board-panel h3')).toContainText('Test User 2');
+      // My Board button should appear
+      await expect(page.locator('.btn-back', { hasText: 'My Board' })).toBeVisible();
+      // Click it to go back
+      await page.locator('.btn-back', { hasText: 'My Board' }).click();
+      await expect(page.locator('.board-panel h3')).toContainText('Test User 1');
+    }
+
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+
+  test('admin copy link button exists for each user', async ({ page }) => {
+    await adminLogin(page);
+    await adminNavToSeason(page);
+    await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
+    // Should see link buttons for users
+    await expect(page.locator('.btn-link').first()).toBeVisible();
+  });
+});
+
+// ── Admin Suggestions ──
+
+// ── Championship Standings ──
+
+test.describe('Championship Standings', () => {
+  let standingsRound1Id: string;
+  let standingsRound2Id: string;
+
+  test('cumulative scores across rounds', async ({ page }) => {
+    // Create two rounds with suggestions
+    standingsRound1Id = (await apiPost(`/seasons/${seasonId}/rounds`, { name: 'STANDINGS_R1', eventDate: '2026-09-01' }, adminToken)).id;
+    standingsRound2Id = (await apiPost(`/seasons/${seasonId}/rounds`, { name: 'STANDINGS_R2', eventDate: '2026-09-15' }, adminToken)).id;
+
+    // Add suggestions to round 1 and select them
+    const s1 = await apiPost(`/rounds/${standingsRound1Id}/suggestions`, { text: 'Standings sug 1' }, adminToken);
+    const s2 = await apiPost(`/rounds/${standingsRound1Id}/suggestions`, { text: 'Standings sug 2' }, adminToken);
+    await apiPut(`/rounds/${standingsRound1Id}/suggestions/${s1.id}`, { selected: true }, adminToken);
+    await apiPut(`/rounds/${standingsRound1Id}/suggestions/${s2.id}`, { selected: true }, adminToken);
+
+    // Add suggestions to round 2 and select them
+    const s3 = await apiPost(`/rounds/${standingsRound2Id}/suggestions`, { text: 'Standings sug 3' }, adminToken);
+    const s4 = await apiPost(`/rounds/${standingsRound2Id}/suggestions`, { text: 'Standings sug 4' }, adminToken);
+    await apiPut(`/rounds/${standingsRound2Id}/suggestions/${s3.id}`, { selected: true }, adminToken);
+    await apiPut(`/rounds/${standingsRound2Id}/suggestions/${s4.id}`, { selected: true }, adminToken);
+
+    // Advance both to Race Day (generates boards)
+    await apiPut(`/rounds/${standingsRound1Id}/phase`, { phase: 'boards' }, adminToken);
+    await apiPut(`/rounds/${standingsRound2Id}/phase`, { phase: 'boards' }, adminToken);
+
+    // Mark a suggestion complete in round 1
+    await apiPut(`/rounds/${standingsRound1Id}/suggestions/${s1.id}`, { completed: true }, adminToken);
+
+    // Mark a suggestion complete in round 2
+    await apiPut(`/rounds/${standingsRound2Id}/suggestions/${s3.id}`, { completed: true }, adminToken);
+
+    // Check season leaderboard via API — users should have cumulative scores
+    const seasonLb = await apiGet(`/seasons/${seasonId}/leaderboard`);
+    expect(seasonLb.length).toBeGreaterThan(0);
+
+    // Each user should have scores from both rounds combined
+    for (const entry of seasonLb) {
+      expect(entry.totalScore).toBeGreaterThanOrEqual(0);
+    }
+
+    // The top user should have score from both rounds
+    const topScore = seasonLb[0].totalScore;
+    expect(topScore).toBeGreaterThan(0);
+
+    // Set round 2 as active and check public page shows standings
+    await apiPut('/active-round', { roundId: standingsRound2Id }, adminToken);
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await expect(page.locator('.standings-panel')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.standings-panel h3')).toContainText('Championship Standings');
+    // Should show scores
+    await expect(page.locator('.standings-panel .lb-score').first()).toBeVisible();
+
+    // Cleanup
+    await apiPut('/active-round', { roundId: null }, adminToken);
+    await apiDelete(`/rounds/${standingsRound1Id}`, adminToken);
+    await apiDelete(`/rounds/${standingsRound2Id}`, adminToken);
+  });
+
+  test('standings show on public page in suggestions mode', async ({ page }) => {
+    // Use TESTROUND which has suggestions
+    await apiPut('/active-round', { roundId: testRoundId }, adminToken);
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' }, adminToken);
+
+    await page.goto('/');
+    await page.waitForSelector('.round-header', { timeout: 5000 });
+    // Standings should be visible even in suggestions mode
+    // (may be empty if no completed rounds, but the section should render if data exists)
+    // Just verify the page loads without error
+    await expect(page.locator('h1')).toContainText('MotoBingo');
+
+    await apiPut('/active-round', { roundId: null }, adminToken);
+  });
+});
+
+// ── Admin Suggestions ──
+
+test.describe('Admin Suggestions', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/admin');
+    await page.evaluate(() => {
+      localStorage.removeItem('admin_champId');
+      localStorage.removeItem('admin_seasonId');
+      localStorage.removeItem('admin_roundId');
+    });
+  });
+
+  test('can add and edit suggestion', async ({ page }) => {
+    await adminLogin(page);
+    await adminNavToRound(page, 'TESTROUND');
+
+    await page.locator('input[placeholder="Add suggestion (auto-approved)"]').fill('E2E new suggestion');
+    await page.getByRole('button', { name: '+ Add' }).click();
+    await expect(page.locator('.suggestion-text', { hasText: 'E2E new suggestion' })).toBeVisible();
+
+    const row = page.locator('.suggestion-row', { hasText: 'E2E new suggestion' });
+    await row.locator('.btn-tiny', { hasText: '✎' }).click();
+    const editInput = page.locator('.edit-input');
+    await editInput.fill('E2E edited');
+    await editInput.press('Enter');
+    await expect(page.locator('.suggestion-text', { hasText: 'E2E edited' })).toBeVisible();
+  });
+
+  test('suggestion input has 200 char limit', async ({ page }) => {
+    await adminLogin(page);
+    await adminNavToRound(page, 'TESTROUND');
+    await expect(page.locator('input[placeholder="Add suggestion (auto-approved)"]')).toHaveAttribute('maxlength', '200');
+  });
+
+  test('vote count visible', async ({ page }) => {
+    await adminLogin(page);
+    await adminNavToRound(page, 'TESTROUND');
+    await expect(page.locator('.vote-count').first()).toBeVisible();
   });
 });

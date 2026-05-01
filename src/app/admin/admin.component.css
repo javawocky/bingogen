@@ -8,6 +8,11 @@
 }
 .header h1 { margin: 0; font-size: 24px; color: #e7e9ea; }
 .header-actions { display: flex; gap: 8px; align-items: center; }
+.header-select {
+  padding: 6px 10px; border: 1px solid #2f3336; border-radius: 20px;
+  font-size: 13px; background: #16181c; color: #e7e9ea; cursor: pointer;
+}
+.header-select option { background: #16181c; color: #e7e9ea; }
 
 .main-layout { display: flex; gap: 24px; margin-top: 20px; }
 .sidebar { width: 240px; flex-shrink: 0; }
@@ -50,6 +55,9 @@
 .round-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .round-header h2 { margin: 0; color: #e7e9ea; }
 .event-date { color: #71767b; font-size: 14px; }
+.phase-label { font-size: 13px; color: #1d9bf0; font-weight: bold; }
+.btn-back { background: #536471; }
+.btn-back:hover { background: #45535e; }
 
 /* Panels */
 .panel { background: #16181c; border: 1px solid #2f3336; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
@@ -91,6 +99,11 @@ button:hover { background: #1a8cd8; }
 
 /* Suggestions */
 .suggestions-list { max-height: 400px; overflow-y: auto; }
+.suggestions-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.suggestions-header h3 { margin: 0; }
+.filter-toggle { font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: #71767b; }
+.filter-toggle input { cursor: pointer; }
+.warning { color: #ffd400; font-size: 13px; margin-bottom: 8px; padding: 8px 12px; background: rgba(255, 212, 0, 0.1); border: 1px solid rgba(255, 212, 0, 0.3); border-radius: 8px; }
 .suggestion-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 10px 12px; margin-bottom: 2px; background: #1e2024; border-radius: 8px;
@@ -111,10 +124,33 @@ button:hover { background: #1a8cd8; }
 }
 
 /* Players */
-.player-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #2f3336; color: #e7e9ea; }
+.player-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #2f3336; color: #e7e9ea; cursor: pointer; }
+.player-row:hover { background: #1e2024; border-radius: 8px; padding: 6px 8px; }
 .player-row span { flex: 1; }
+.player-row.active-player { background: rgba(29, 155, 240, 0.1); border-radius: 8px; padding: 6px 8px; }
+.user-name { flex: 1; }
+.edit-input-sm { padding: 3px 6px; border: 1px solid #1d9bf0; border-radius: 6px; font-size: 13px; background: #202327; color: #e7e9ea; width: 100px; }
+.btn-link { background: #2f3336; }
+.btn-link:hover { background: #1d9bf0; }
 
 /* Bingo grid */
+.board-preview-panel { max-width: 600px; }
+.board-preview { display: grid; gap: 0; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid #e7e9ea; }
+.preview-cell {
+  background: #16181c; display: flex; align-items: center; justify-content: center;
+  padding: 10px 6px; text-align: center; font-size: 14px; min-height: 70px;
+  word-break: break-word; color: #e7e9ea; border: 1px solid #2f3336;
+}
+.preview-cell.free-cell { background: rgba(255, 212, 0, 0.15); color: #ffd400; font-weight: bold; font-size: 16px; }
+.preview-cell.empty-cell { background: #0f1419; border: 1px dashed #2f3336; color: #536471; }
+.preview-cell.mark-x, .preview-cell.mark-circle, .preview-cell.mark-scribble { position: relative; }
+.preview-cell.mark-x::after, .preview-cell.mark-circle::after, .preview-cell.mark-scribble::after {
+  content: ''; position: absolute; top: 5%; left: 5%; width: 90%; height: 90%; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10,10 Q25,18 40,35 Q55,52 90,90' stroke='%23dc3545' stroke-width='5' fill='none' stroke-linecap='round' opacity='0.7'/%3E%3Cpath d='M90,10 Q75,22 60,38 Q45,55 10,90' stroke='%23dc3545' stroke-width='5' fill='none' stroke-linecap='round' opacity='0.7'/%3E%3C/svg%3E") no-repeat center/contain;
+}
+.preview-cell.clickable { cursor: pointer; }
+.preview-cell.clickable:hover { background: rgba(29, 155, 240, 0.15); }
+
 .bingo-grid { display: grid; gap: 2px; background: #2f3336; padding: 2px; border-radius: 8px; }
 .bingo-cell {
   background: #16181c; display: flex; align-items: center; justify-content: center;

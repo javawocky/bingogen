@@ -1,4 +1,4 @@
-import { Round, RoundBoards, PlayerBoard, Suggestion } from './types';
+import { Round, RoundBoards, PlayerBoard, BoardSquare, Suggestion } from './types';
 
 export function calculateScore(board: PlayerBoard, suggestions: Suggestion[], boardSize: number): { score: number; hasBingo: boolean } {
   const grid: boolean[] = board.squares.map(sq =>
@@ -65,7 +65,6 @@ export function generateBoard(selectedSuggestionIds: string[], boardSize: number
   const totalSquares = boardSize * boardSize;
   const centreIndex = Math.floor(totalSquares / 2);
 
-  // Shuffle and pick enough suggestions for the board (minus the free square)
   const shuffled = [...selectedSuggestionIds].sort(() => Math.random() - 0.5);
   const needed = totalSquares - 1;
   const picked = shuffled.slice(0, needed);
@@ -76,9 +75,48 @@ export function generateBoard(selectedSuggestionIds: string[], boardSize: number
     if (i === centreIndex) {
       squares.push({ position: i, suggestionId: 'FREE' });
     } else {
-      squares.push({ position: i, suggestionId: picked[pickIdx++] });
+      squares.push({ position: i, suggestionId: picked[pickIdx++] || '' });
     }
   }
 
   return { squares, score: 0, hasBingo: false };
+}
+
+export function updateBoardIntelligently(
+  existingBoard: PlayerBoard,
+  selectedSuggestionIds: string[],
+  boardSize: number
+): PlayerBoard {
+  const totalSquares = boardSize * boardSize;
+  const centreIndex = Math.floor(totalSquares / 2);
+  const selectedSet = new Set(selectedSuggestionIds);
+
+  // Keep existing squares that are still in the selected pool
+  const newSquares: BoardSquare[] = [];
+  const usedIds = new Set<string>();
+
+  for (let i = 0; i < totalSquares; i++) {
+    if (i === centreIndex) {
+      newSquares.push({ position: i, suggestionId: 'FREE' });
+      continue;
+    }
+    const existing = existingBoard.squares.find(s => s.position === i);
+    if (existing && existing.suggestionId !== 'FREE' && existing.suggestionId && selectedSet.has(existing.suggestionId)) {
+      newSquares.push({ position: i, suggestionId: existing.suggestionId });
+      usedIds.add(existing.suggestionId);
+    } else {
+      newSquares.push({ position: i, suggestionId: '' }); // placeholder
+    }
+  }
+
+  // Fill empty slots with unused suggestions (randomised)
+  const unused = selectedSuggestionIds.filter(id => !usedIds.has(id)).sort(() => Math.random() - 0.5);
+  let unusedIdx = 0;
+  for (let i = 0; i < newSquares.length; i++) {
+    if (newSquares[i].suggestionId === '' && unusedIdx < unused.length) {
+      newSquares[i].suggestionId = unused[unusedIdx++];
+    }
+  }
+
+  return { squares: newSquares, score: existingBoard.score, hasBingo: existingBoard.hasBingo };
 }

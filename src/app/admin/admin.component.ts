@@ -56,12 +56,10 @@ export class AdminComponent implements OnInit, OnDestroy {
     const existingYears = new Set(this.seasons.map(s => s.year));
     const options: { year: number; seasonId: string | null; active: boolean }[] = [];
 
-    // Add all existing seasons (including historic)
     for (const s of this.seasons) {
-      options.push({ year: s.year, seasonId: s.id, active: s.active });
+      options.push({ year: s.year, seasonId: s.id, active: s.year === now });
     }
 
-    // Add future years that don't exist yet (up to +5)
     for (let y = now; y <= now + 5; y++) {
       if (!existingYears.has(y)) {
         options.push({ year: y, seasonId: null, active: false });
@@ -74,6 +72,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   // Suggestion (public)
   publicSuggestionText = '';
   suggestionSubmitted = false;
+  filterBoardOnly = false;
 
   // Polling
   private pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -179,7 +178,14 @@ export class AdminComponent implements OnInit, OnDestroy {
       this.seasons = s;
       const savedId = localStorage.getItem('admin_seasonId');
       const match = s.find(se => se.id === savedId);
-      if (match) this.selectSeason(match);
+      if (match) {
+        this.selectSeason(match);
+      } else {
+        // Auto-select current year if it exists
+        const currentYear = new Date().getFullYear();
+        const current = s.find(se => se.year === currentYear);
+        if (current) this.selectSeason(current);
+      }
     });
   }
 
@@ -244,12 +250,15 @@ export class AdminComponent implements OnInit, OnDestroy {
   // --- Admin: Seasons ---
   onSeasonChange(event: Event) {
     const value = (event.target as HTMLSelectElement).value;
-    // value is either a season ID (existing) or "new:YEAR"
     if (value.startsWith('new:')) {
       const year = parseInt(value.split(':')[1], 10);
       if (!this.selectedChampionship || !year) return;
-      this.api.createSeason(this.selectedChampionship.id, year).subscribe(() => {
-        this.selectChampionship(this.selectedChampionship!);
+      this.api.createSeason(this.selectedChampionship.id, year).subscribe(newSeason => {
+        this.api.getSeasons(this.selectedChampionship!.id).subscribe(s => {
+          this.seasons = s;
+          const created = s.find(se => se.id === newSeason.id);
+          if (created) this.selectSeason(created);
+        });
       });
     } else {
       const season = this.seasons.find(s => s.id === value);
@@ -299,12 +308,53 @@ export class AdminComponent implements OnInit, OnDestroy {
     });
   }
 
+  phaseLabel(phase: string): string {
+    const labels: Record<string, string> = { suggestions: 'Suggestions', boards: 'Race Day', raceday: 'Race Day', complete: 'Complete' };
+    return labels[phase] || phase;
+  }
+
   advancePhase() {
     if (!this.activeRound) return;
-    const order: Round['phase'][] = ['suggestions', 'boards', 'raceday', 'complete'];
+    const order: Round['phase'][] = ['suggestions', 'boards', 'complete'];
     const next = order[order.indexOf(this.activeRound.phase) + 1];
-    if (!next || !confirm(`Advance to "${next}" phase?`)) return;
+    if (!next || !confirm(`Advance to "${this.phaseLabel(next)}" phase?`)) return;
     this.api.advancePhase(this.activeRound.id, next).subscribe(() => this.refreshRound());
+  }
+
+  revertPhase() {
+    if (!this.activeRound) return;
+    // Both 'boards' and 'raceday' revert to suggestions
+    if (!confirm('Go back to "Suggestions" phase? Existing boards will be kept.')) return;
+    this.api.advancePhase(this.activeRound.id, 'suggestions').subscribe(() => this.refreshRound());
+  }
+
+  moveToNextRound() {
+    if (!this.activeRound) return;
+    if (!confirm('Complete this round and move to the next one? This round will be marked as complete.')) return;
+
+    // Mark current round as complete
+    this.api.advancePhase(this.activeRound.id, 'complete').subscribe(() => {
+      // Find the next round by date
+      const currentDate = this.activeRound!.eventDate;
+      const nextRound = this.rounds
+        .filter(r => r.id !== this.activeRound!.id && r.eventDate > currentDate && r.phase !== 'complete')
+        .sort((a, b) => a.eventDate.localeCompare(b.eventDate))[0];
+
+      if (nextRound) {
+        // Set next round as active
+        this.api.setActiveRound(nextRound.id).subscribe(() => {
+          this.activePublicRoundId = nextRound.id;
+          this.selectRound(nextRound);
+          this.selectSeason(this.selectedSeason!); // refresh round list
+        });
+      } else {
+        alert('There are no more rounds. Perhaps choose another Championship or add one?');
+        this.api.setActiveRound(null).subscribe(() => {
+          this.activePublicRoundId = null;
+          this.selectSeason(this.selectedSeason!);
+        });
+      }
+    });
   }
 
   deleteRound(id: string) {
@@ -333,16 +383,57 @@ export class AdminComponent implements OnInit, OnDestroy {
   // --- Admin: Users ---
   createUser() {
     if (!this.newUserHandle.trim() || !this.newUserName.trim()) return;
-    this.api.createUser(this.newUserHandle, this.newUserName).subscribe(() => {
+    const handle = this.newUserHandle.trim().replace(/^@/, '');
+    this.api.createUser(handle, this.newUserName).subscribe(() => {
       this.newUserHandle = '';
       this.newUserName = '';
       this.loadUsers();
     });
   }
 
+  // User click — show their board
+  onUserClick(userId: string) {
+    if (this.editingUserId) return; // don't navigate while editing
+    if (this.activeRound && this.activeRound.phase !== 'suggestions') {
+      this.viewBoard(userId);
+    }
+  }
+
+  // Edit user
+  editingUserId: string | null = null;
+  editingUserHandle = '';
+  editingUserName = '';
+
+  startEditUser(u: User) {
+    this.editingUserId = u.id;
+    this.editingUserHandle = u.xHandle;
+    this.editingUserName = u.displayName;
+  }
+
+  saveEditUser(id: string) {
+    if (!this.editingUserHandle.trim() || !this.editingUserName.trim()) return;
+    const handle = this.editingUserHandle.trim().replace(/^@/, '');
+    this.api.updateUser(id, { xHandle: handle, displayName: this.editingUserName.trim() } as any).subscribe(() => {
+      this.editingUserId = null;
+      this.loadUsers();
+    });
+  }
+
+  cancelEditUser() {
+    this.editingUserId = null;
+  }
+
   deleteUser(id: string) {
     if (!confirm('Delete this user?')) return;
     this.api.deleteUser(id).subscribe(() => this.loadUsers());
+  }
+
+  getUserLink(u: User): string {
+    return `${window.location.origin}/?handle=${encodeURIComponent(u.xHandle)}`;
+  }
+
+  copyUserLink(u: User) {
+    navigator.clipboard.writeText(this.getUserLink(u));
   }
 
   addPlayerToRound(userId: string) {
@@ -397,13 +488,31 @@ export class AdminComponent implements OnInit, OnDestroy {
     this.api.updateSuggestion(this.activeRound.id, s.id, { status: 'rejected' }).subscribe(() => this.refreshRound());
   }
 
+  deleteSuggestion(s: Suggestion) {
+    if (!this.activeRound || !confirm('Delete this suggestion?')) return;
+    this.api.deleteSuggestion(this.activeRound.id, s.id).subscribe(() => this.refreshRound());
+  }
+
   toggleSelected(s: Suggestion) {
     if (!this.activeRound) return;
     this.api.updateSuggestion(this.activeRound.id, s.id, { selected: !s.selected }).subscribe(() => this.refreshRound());
   }
 
+  // Track mark style variants per suggestion
+  markVariants: Record<string, number> = {};
+
+  getMarkVariant(suggestionId: string): number {
+    if (!this.markVariants[suggestionId]) {
+      this.markVariants[suggestionId] = Math.floor(Math.random() * 3) + 1;
+    }
+    return this.markVariants[suggestionId];
+  }
+
   markComplete(s: Suggestion) {
     if (!this.activeRound) return;
+    if (!s.completed) {
+      this.markVariants[s.id] = Math.floor(Math.random() * 3) + 1;
+    }
     this.api.updateSuggestion(this.activeRound.id, s.id, { completed: !s.completed }).subscribe(() => {
       this.refreshRound();
       if (this.viewingBoardUserId) this.viewBoard(this.viewingBoardUserId);
@@ -445,6 +554,58 @@ export class AdminComponent implements OnInit, OnDestroy {
   // --- Helpers ---
   get selectedSuggestionCount(): number {
     return this.activeRound?.suggestions.filter(s => s.selected).length || 0;
+  }
+
+  get maxBoardSquares(): number {
+    return this.boardPreviewSize * this.boardPreviewSize - 1; // minus FREE
+  }
+
+  get boardIsFull(): boolean {
+    return this.selectedSuggestionCount >= this.maxBoardSquares;
+  }
+
+  get filteredSuggestions() {
+    if (!this.activeRound) return [];
+    let suggestions = [...this.activeRound.suggestions];
+    if (this.filterBoardOnly) {
+      suggestions = suggestions.filter(s => s.selected);
+    }
+    // Newest first
+    return suggestions.reverse();
+  }
+
+  get boardPreviewSize(): number {
+    return 5; // default 5x5
+  }
+
+  get boardPreviewSquares(): { text: string; isFree: boolean; isEmpty: boolean; completed: boolean; suggestionId: string | null; markVariant: number }[] {
+    const size = this.boardPreviewSize;
+    const total = size * size;
+    const centre = Math.floor(total / 2);
+    const selected = this.activeRound?.suggestions.filter(s => s.selected) || [];
+    const squares: { text: string; isFree: boolean; isEmpty: boolean; completed: boolean; suggestionId: string | null; markVariant: number }[] = [];
+    let idx = 0;
+    for (let i = 0; i < total; i++) {
+      if (i === centre) {
+        squares.push({ text: 'FREE', isFree: true, isEmpty: false, completed: false, suggestionId: null, markVariant: 0 });
+      } else if (idx < selected.length) {
+        const s = selected[idx];
+        squares.push({ text: s.text, isFree: false, isEmpty: false, completed: s.completed, suggestionId: s.id, markVariant: s.completed ? this.getMarkVariant(s.id) : 0 });
+        idx++;
+      } else {
+        squares.push({ text: '', isFree: false, isEmpty: true, completed: false, suggestionId: null, markVariant: 0 });
+      }
+    }
+    return squares;
+  }
+
+  onBoardCellClick(sq: { isFree: boolean; isEmpty: boolean; suggestionId: string | null }) {
+    if (!this.isAdmin || !this.activeRound) return;
+    if (sq.isFree || sq.isEmpty || !sq.suggestionId) return;
+    if (this.activeRound.phase !== 'boards' && this.activeRound.phase !== 'raceday') return;
+    const suggestion = this.activeRound.suggestions.find(s => s.id === sq.suggestionId);
+    if (!suggestion) return;
+    this.markComplete(suggestion);
   }
 
   getUserById(id: string): User | undefined {

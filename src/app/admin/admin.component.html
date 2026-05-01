@@ -2,6 +2,20 @@
   <header class="header">
     <h1>🏁 MotoBingo Admin</h1>
     <div class="header-actions">
+      <select class="header-select" (change)="onChampionshipChange($event)" title="Championship">
+        <option value="" disabled selected>Championship</option>
+        @for (c of championships; track c.id) {
+          <option [value]="c.id" [selected]="selectedChampionship?.id === c.id">{{ c.name }} ({{ c.shortCode }})</option>
+        }
+      </select>
+      @if (selectedChampionship) {
+        <select class="header-select" (change)="onSeasonChange($event)" title="Season">
+          <option value="" disabled selected>Season</option>
+          @for (opt of seasonOptions; track opt.year) {
+            <option [value]="opt.seasonId || 'new:' + opt.year" [selected]="selectedSeason?.id === opt.seasonId">{{ opt.year }}</option>
+          }
+        </select>
+      }
       @if (isAdmin) {
         <button class="btn-small btn-danger" (click)="logout()">Logout</button>
       } @else {
@@ -33,28 +47,6 @@
   <div class="main-layout">
     <!-- Sidebar: Navigation -->
     <aside class="sidebar">
-      <h3>Championship</h3>
-      <select class="nav-select" (change)="onChampionshipChange($event)">
-        <option value="" disabled selected>Select championship</option>
-        @for (c of championships; track c.id) {
-          <option [value]="c.id" [selected]="selectedChampionship?.id === c.id">{{ c.name }} ({{ c.shortCode }})</option>
-        }
-      </select>
-
-      @if (selectedChampionship) {
-        <h3>Season</h3>
-        <select class="nav-select" (change)="onSeasonChange($event)">
-          <option value="" disabled selected>Select season</option>
-          @for (opt of seasonOptions; track opt.year) {
-            @if (opt.seasonId) {
-              <option [value]="opt.seasonId" [selected]="selectedSeason?.id === opt.seasonId">{{ opt.year }} @if (opt.active) { (active) }</option>
-            } @else if (isAdmin) {
-              <option [value]="'new:' + opt.year">{{ opt.year }} (create new)</option>
-            }
-          }
-        </select>
-      }
-
       @if (selectedSeason) {
         <div class="rounds-header">
           <h3>Rounds</h3>
@@ -90,18 +82,56 @@
         <div class="round-header">
           <h2>{{ activeRound.name }}</h2>
           <span class="event-date">{{ activeRound.eventDate }}</span>
+          <span class="phase-label">{{ phaseLabel(activeRound.phase) }}</span>
           @if (isAdmin) {
-            <button class="btn-small" (click)="advancePhase()">Advance Phase →</button>
+            @if (activeRound.phase === 'boards' || activeRound.phase === 'raceday') {
+              <button class="btn-small btn-back" (click)="revertPhase()">← Back to Suggestions</button>
+            }
+            @if (activeRound.phase === 'suggestions') {
+              <button class="btn-small" (click)="advancePhase()">Race Day →</button>
+            }
+            @if (activeRound.phase === 'boards' || activeRound.phase === 'raceday') {
+              <button class="btn-small" (click)="moveToNextRound()">Move to Next Round →</button>
+            }
           }
         </div>
 
         <div class="round-content">
+          <!-- Board Preview -->
+          <section class="panel board-preview-panel">
+            <h3>Board Preview @if (boardIsFull) { <span class="board-full-check">✅</span> } @else { <span class="info">({{ selectedSuggestionCount }}/{{ maxBoardSquares }} squares filled)</span> }</h3>
+            <div class="board-preview" [style.grid-template-columns]="'repeat(' + boardPreviewSize + ', 1fr)'">
+              @for (sq of boardPreviewSquares; track $index) {
+                <div class="preview-cell"
+                  [class.free-cell]="sq.isFree"
+                  [class.empty-cell]="sq.isEmpty"
+                  [class.mark-x]="sq.completed && sq.markVariant === 1"
+                  [class.mark-circle]="sq.completed && sq.markVariant === 2"
+                  [class.mark-scribble]="sq.completed && sq.markVariant === 3"
+                  [class.clickable]="isAdmin && !sq.isFree && !sq.isEmpty && (activeRound.phase === 'boards' || activeRound.phase === 'raceday')"
+                  (click)="onBoardCellClick(sq)">
+                  {{ sq.isFree ? '⭐ FREE' : sq.text }}
+                </div>
+              }
+            </div>
+          </section>
+
           <!-- Suggestions panel -->
           <section class="panel">
-            <h3>Suggestions</h3>
+            <div class="suggestions-header">
+              <h3>Suggestions</h3>
+              @if (isAdmin) {
+                <label class="filter-toggle">
+                  <input type="checkbox" [(ngModel)]="filterBoardOnly"> On Board Only
+                </label>
+              }
+            </div>
 
             <!-- Admin suggestion form -->
             @if (isAdmin) {
+              @if (boardIsFull) {
+                <p class="warning">Board is full ({{ maxBoardSquares }}/{{ maxBoardSquares }}). To add a new item, remove one of the existing items first.</p>
+              }
               <div class="admin-form">
                 <input type="text" [(ngModel)]="newSuggestionText" (keyup.enter)="addSuggestion()" placeholder="Add suggestion (auto-approved)" maxlength="200">
                 <button (click)="addSuggestion()">+ Add</button>
@@ -109,7 +139,7 @@
             }
 
             <div class="suggestions-list">
-              @for (s of activeRound.suggestions; track s.id) {
+              @for (s of filteredSuggestions; track s.id) {
                 <div class="suggestion-row" [class.selected]="s.selected" [class.completed]="s.completed" [class.pending]="s.status === 'pending'">
                   @if (editingSuggestionId === s.id) {
                     <input type="text" [(ngModel)]="editingSuggestionText" (keyup.enter)="saveEditSuggestion(s)" (keyup.escape)="cancelEditSuggestion()" (blur)="saveEditSuggestion(s)" maxlength="200" class="edit-input">
@@ -128,50 +158,19 @@
                       }
                       @if (s.status === 'approved' && (activeRound.phase === 'boards' || activeRound.phase === 'suggestions')) {
                         <label class="select-toggle">
-                          <input type="checkbox" [checked]="s.selected" (change)="toggleSelected(s)"> Board
+                          <input type="checkbox" [checked]="s.selected" (change)="toggleSelected(s)" [disabled]="!s.selected && boardIsFull"> Board
                         </label>
                       }
-                      @if (activeRound.phase === 'raceday' && s.selected) {
-                        <button class="btn-tiny" [class.btn-complete]="s.completed" (click)="markComplete(s)">{{ s.completed ? '✓ Done' : 'Mark ✓' }}</button>
-                      }
+                      <button class="btn-tiny btn-danger" (click)="deleteSuggestion(s)" title="Delete suggestion">🗑</button>
                     </div>
                   }
                 </div>
               }
             </div>
             @if (isAdmin && selectedSuggestionCount > 0) {
-              <p class="info">{{ selectedSuggestionCount }} selected for board</p>
+              <p class="info">{{ selectedSuggestionCount }}/{{ maxBoardSquares }} selected for board</p>
             }
           </section>
-
-          <!-- Board generation (admin) -->
-          @if (isAdmin && (activeRound.phase === 'boards' || activeRound.phase === 'raceday')) {
-            <section class="panel">
-              <h3>Board Management</h3>
-              @if (activeRound.phase === 'boards') {
-                <button (click)="generateBoards()">Generate Boards</button>
-              }
-
-              <h4>Players in Round</h4>
-              @for (pid of activeRound.playerIds; track pid) {
-                <div class="player-row">
-                  <span>{{ getUserById(pid)?.displayName || pid }} (@{{ getUserById(pid)?.xHandle }})</span>
-                  <button class="btn-tiny btn-danger" (click)="removePlayerFromRound(pid)">✕</button>
-                  <button class="btn-tiny" (click)="viewBoard(pid)">View Board</button>
-                </div>
-              }
-
-              <h4>Add Players</h4>
-              @for (u of users; track u.id) {
-                @if (!isPlayerInRound(u.id)) {
-                  <div class="player-row">
-                    <span>{{ u.displayName }} (@{{ u.xHandle }})</span>
-                    <button class="btn-tiny" (click)="addPlayerToRound(u.id)">+ Add</button>
-                  </div>
-                }
-              }
-            </section>
-          }
 
           <!-- Admin: User management -->
           @if (isAdmin) {
@@ -183,9 +182,18 @@
                 <button (click)="createUser()">+ User</button>
               </div>
               @for (u of users; track u.id) {
-                <div class="player-row">
-                  <span>{{ u.displayName }} (@{{ u.xHandle }})</span>
-                  <button class="btn-tiny btn-danger" (click)="deleteUser(u.id)">✕</button>
+                <div class="player-row" [class.active-player]="viewingBoardUserId === u.id" (click)="onUserClick(u.id)">
+                  @if (editingUserId === u.id) {
+                    <input type="text" [(ngModel)]="editingUserHandle" class="edit-input-sm" placeholder="X handle" (keyup.escape)="cancelEditUser()">
+                    <input type="text" [(ngModel)]="editingUserName" class="edit-input-sm" placeholder="Name" (keyup.enter)="saveEditUser(u.id)" (keyup.escape)="cancelEditUser()">
+                    <button class="btn-tiny btn-approve" (click)="saveEditUser(u.id); $event.stopPropagation()">✓</button>
+                    <button class="btn-tiny" (click)="cancelEditUser(); $event.stopPropagation()">✕</button>
+                  } @else {
+                    <span class="user-name">{{ u.displayName }} (@{{ u.xHandle }})</span>
+                    <button class="btn-tiny btn-link" (click)="copyUserLink(u); $event.stopPropagation()" title="Copy shareable link">🔗</button>
+                    <button class="btn-tiny" (click)="startEditUser(u); $event.stopPropagation()" title="Edit user">✎</button>
+                    <button class="btn-tiny btn-danger" (click)="deleteUser(u.id); $event.stopPropagation()">✕</button>
+                  }
                 </div>
               }
             </section>

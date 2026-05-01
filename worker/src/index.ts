@@ -1,6 +1,6 @@
 import { Router, json, cors } from './router';
 import { createJwt, requireAdmin } from './auth';
-import { calculateScore, generateBoard } from './scoring';
+import { calculateScore, generateBoard, updateBoardIntelligently } from './scoring';
 import { Env, User, Championship, Season, Round, RoundBoards, Suggestion } from './types';
 
 const router = new Router();
@@ -32,13 +32,34 @@ router.post('/api/v1/users', async (req, env) => {
   if (!await requireAdmin(req, env)) return json({ error: 'Unauthorized' }, 401);
   const { xHandle, displayName } = await req.json() as { xHandle: string; displayName: string };
   if (!xHandle?.trim() || !displayName?.trim()) return json({ error: 'xHandle and displayName required' }, 400);
+  const cleanHandle = xHandle.trim().replace(/^@/, '');
 
   const users = (await env.KV.get('users', 'json') as User[] | null) || [];
-  if (users.some(u => u.xHandle === xHandle.trim())) return json({ error: 'User already exists' }, 409);
+  if (users.some(u => u.xHandle === cleanHandle)) return json({ error: 'User already exists' }, 409);
 
-  const user: User = { id: crypto.randomUUID(), xHandle: xHandle.trim(), displayName: displayName.trim(), createdAt: new Date().toISOString() };
+  const user: User = { id: crypto.randomUUID(), xHandle: cleanHandle, displayName: displayName.trim(), createdAt: new Date().toISOString() };
   users.push(user);
   await env.KV.put('users', JSON.stringify(users));
+
+  // Auto-add to any active round in boards/raceday phase and generate board
+  const activeRoundId = await env.KV.get('active-round-id');
+  if (activeRoundId) {
+    const round = await env.KV.get(`round:${activeRoundId}`, 'json') as Round | null;
+    if (round && (round.phase === 'boards' || round.phase === 'raceday')) {
+      if (!round.playerIds.includes(user.id)) {
+        round.playerIds.push(user.id);
+        await env.KV.put(`round:${activeRoundId}`, JSON.stringify(round));
+      }
+      const selected = round.suggestions.filter(s => s.selected).map(s => s.id);
+      const boardsData = (await env.KV.get(`round:${activeRoundId}:boards`, 'json') as RoundBoards | null)
+        || { roundId: activeRoundId, boardSize: 5, boards: {} };
+      if (!boardsData.boards[user.id]) {
+        boardsData.boards[user.id] = generateBoard(selected, boardsData.boardSize);
+        await env.KV.put(`round:${activeRoundId}:boards`, JSON.stringify(boardsData));
+      }
+    }
+  }
+
   return json(user, 201);
 });
 
@@ -98,6 +119,9 @@ router.post('/api/v1/championships/:id/seasons', async (req, env, params) => {
   const key = `championship:${params.id}:seasons`;
   const seasons = (await env.KV.get(key, 'json') as Season[] | null) || [];
 
+  // Prevent duplicate year
+  if (seasons.some(s => s.year === year)) return json({ error: 'Season already exists for this year' }, 409);
+
   // Deactivate previous active season
   seasons.forEach(s => { s.active = false; });
 
@@ -118,10 +142,13 @@ router.get('/api/v1/seasons/:id/leaderboard', async (_req, env, params) => {
   const users = (await env.KV.get('users', 'json') as User[] | null) || [];
   const cumulative: Record<string, { userId: string; xHandle: string; displayName: string; totalScore: number; bingos: number }> = {};
 
+  const userIds = new Set(users.map(u => u.id));
+
   for (const round of rounds) {
     const boardsData = await env.KV.get(`round:${round.id}:boards`, 'json') as RoundBoards | null;
     if (!boardsData) continue;
     for (const [userId, board] of Object.entries(boardsData.boards)) {
+      if (!userIds.has(userId)) continue;
       if (!cumulative[userId]) {
         const user = users.find(u => u.id === userId);
         cumulative[userId] = { userId, xHandle: user?.xHandle || '', displayName: user?.displayName || '', totalScore: 0, bingos: 0 };
@@ -197,29 +224,63 @@ router.put('/api/v1/rounds/:id/phase', async (req, env, params) => {
   if (!round) return json({ error: 'Not found' }, 404);
 
   const { phase } = await req.json() as { phase: Round['phase'] };
-  const order: Round['phase'][] = ['suggestions', 'boards', 'raceday', 'complete'];
-  const currentIdx = order.indexOf(round.phase);
-  const newIdx = order.indexOf(phase);
-  if (newIdx <= currentIdx) return json({ error: 'Can only advance phase forward' }, 400);
+  const validPhases: Round['phase'][] = ['suggestions', 'boards', 'raceday', 'complete'];
+  if (!validPhases.includes(phase)) return json({ error: 'Invalid phase' }, 400);
 
   round.phase = phase;
+
+  // When entering boards phase, auto-add all users and generate/update boards
+  if (phase === 'boards') {
+    const users = (await env.KV.get('users', 'json') as User[] | null) || [];
+    round.playerIds = users.map(u => u.id);
+
+    const selected = round.suggestions.filter(s => s.selected).map(s => s.id);
+    const boardSize = 5; // default 5x5
+    const boardsData = (await env.KV.get(`round:${round.id}:boards`, 'json') as RoundBoards | null)
+      || { roundId: round.id, boardSize, boards: {} };
+    boardsData.boardSize = boardSize;
+
+    for (const userId of round.playerIds) {
+      if (boardsData.boards[userId]) {
+        boardsData.boards[userId] = updateBoardIntelligently(boardsData.boards[userId], selected, boardSize);
+      } else {
+        boardsData.boards[userId] = generateBoard(selected, boardSize);
+      }
+    }
+    await env.KV.put(`round:${round.id}:boards`, JSON.stringify(boardsData));
+  }
+
   await env.KV.put(`round:${round.id}`, JSON.stringify(round));
+
+  // Sync season round list
+  const key = `season:${round.seasonId}:rounds`;
+  const rounds = (await env.KV.get(key, 'json') as Round[] | null) || [];
+  const idx = rounds.findIndex(r => r.id === round.id);
+  if (idx !== -1) { rounds[idx] = round; await env.KV.put(key, JSON.stringify(rounds)); }
+
   return json(round);
 });
 
 router.delete('/api/v1/rounds/:id', async (req, env, params) => {
   if (!await requireAdmin(req, env)) return json({ error: 'Unauthorized' }, 401);
-  const round = await env.KV.get(`round:${params.id}`, 'json') as Round | null;
-  if (!round) return json({ error: 'Not found' }, 404);
 
-  await env.KV.delete(`round:${round.id}`);
-  await env.KV.delete(`round:${round.id}:boards`);
+  // Always clean up KV keys
+  await env.KV.delete(`round:${params.id}`);
+  await env.KV.delete(`round:${params.id}:boards`);
 
-  // Remove from season's round list
-  const key = `season:${round.seasonId}:rounds`;
-  const rounds = (await env.KV.get(key, 'json') as Round[] | null) || [];
-  const filtered = rounds.filter(r => r.id !== round.id);
-  await env.KV.put(key, JSON.stringify(filtered));
+  // Remove from all season round lists (search by ID)
+  const champs = await getOrSeedChampionships(env);
+  for (const champ of champs) {
+    const seasons = (await env.KV.get(`championship:${champ.id}:seasons`, 'json') as Season[] | null) || [];
+    for (const season of seasons) {
+      const key = `season:${season.id}:rounds`;
+      const rounds = (await env.KV.get(key, 'json') as Round[] | null) || [];
+      const filtered = rounds.filter(r => r.id !== params.id);
+      if (filtered.length !== rounds.length) {
+        await env.KV.put(key, JSON.stringify(filtered));
+      }
+    }
+  }
 
   return json({ ok: true });
 });
@@ -310,6 +371,18 @@ router.put('/api/v1/rounds/:id/suggestions/:sid', async (req, env, params) => {
   if (updates.completed !== undefined) round.suggestions[idx].completed = updates.completed;
 
   await env.KV.put(`round:${round.id}`, JSON.stringify(round));
+
+  // If in boards phase and selection changed, update boards intelligently
+  if (updates.selected !== undefined && round.phase === 'boards') {
+    const selected = round.suggestions.filter(s => s.selected).map(s => s.id);
+    const boardSize = 5;
+    const boardsData = (await env.KV.get(`round:${round.id}:boards`, 'json') as RoundBoards | null)
+      || { roundId: round.id, boardSize, boards: {} };
+    for (const [userId, board] of Object.entries(boardsData.boards)) {
+      boardsData.boards[userId] = updateBoardIntelligently(board, selected, boardSize);
+    }
+    await env.KV.put(`round:${round.id}:boards`, JSON.stringify(boardsData));
+  }
 
   // If marking complete, recalculate all board scores
   if (updates.completed !== undefined) {
@@ -420,15 +493,35 @@ router.post('/api/v1/rounds/:id/generate-boards', async (req, env, params) => {
 });
 
 router.get('/api/v1/rounds/:id/boards/:userId', async (_req, env, params) => {
-  const boardsData = await env.KV.get(`round:${params.id}:boards`, 'json') as RoundBoards | null;
-  if (!boardsData) return json({ error: 'No boards generated' }, 404);
+  const round = await env.KV.get(`round:${params.id}`, 'json') as Round | null;
+  if (!round) return json({ error: 'Not found' }, 404);
 
+  let boardsData = await env.KV.get(`round:${params.id}:boards`, 'json') as RoundBoards | null;
+
+  // Auto-create board if it doesn't exist and round is in boards+ phase
+  if (round.phase === 'boards' || round.phase === 'raceday') {
+    if (!boardsData) {
+      boardsData = { roundId: params.id, boardSize: 5, boards: {} };
+    }
+    if (!boardsData.boards[params.userId]) {
+      // Only auto-create for users that actually exist
+      const users = (await env.KV.get('users', 'json') as User[] | null) || [];
+      if (!users.some(u => u.id === params.userId)) return json({ error: 'User not found' }, 404);
+      const selected = round.suggestions.filter(s => s.selected).map(s => s.id);
+      boardsData.boards[params.userId] = generateBoard(selected, boardsData.boardSize);
+      if (!round.playerIds.includes(params.userId)) {
+        round.playerIds.push(params.userId);
+        await env.KV.put(`round:${params.id}`, JSON.stringify(round));
+      }
+      await env.KV.put(`round:${params.id}:boards`, JSON.stringify(boardsData));
+    }
+  }
+
+  if (!boardsData) return json({ error: 'No boards generated' }, 404);
   const board = boardsData.boards[params.userId];
   if (!board) return json({ error: 'Board not found' }, 404);
 
-  // Get round for suggestion text
-  const round = await env.KV.get(`round:${params.id}`, 'json') as Round | null;
-  const sugMap = new Map(round?.suggestions.map(s => [s.id, s]) || []);
+  const sugMap = new Map(round.suggestions.map(s => [s.id, s]));
 
   const enriched = board.squares.map(sq => ({
     position: sq.position,
@@ -437,8 +530,7 @@ router.get('/api/v1/rounds/:id/boards/:userId', async (_req, env, params) => {
     completed: sq.suggestionId === 'FREE' || (sugMap.get(sq.suggestionId)?.completed ?? false),
   }));
 
-  // Recalculate score live
-  const result = round ? calculateScore(board, round.suggestions, boardsData.boardSize) : { score: 0, hasBingo: false };
+  const result = calculateScore(board, round.suggestions, boardsData.boardSize);
 
   return json({ boardSize: boardsData.boardSize, squares: enriched, score: result.score, hasBingo: result.hasBingo });
 });
@@ -452,11 +544,15 @@ router.get('/api/v1/rounds/:id/leaderboard', async (_req, env, params) => {
 
   if (!boardsData) return json([]);
 
-  const entries = Object.entries(boardsData.boards).map(([userId, board]) => {
-    const user = users.find(u => u.id === userId);
-    const result = calculateScore(board, round.suggestions, boardsData.boardSize);
-    return { userId, xHandle: user?.xHandle || '', displayName: user?.displayName || '', score: result.score, hasBingo: result.hasBingo };
-  }).sort((a, b) => b.score - a.score);
+  const userIds = new Set(users.map(u => u.id));
+
+  const entries = Object.entries(boardsData.boards)
+    .filter(([userId]) => userIds.has(userId))
+    .map(([userId, board]) => {
+      const user = users.find(u => u.id === userId);
+      const result = calculateScore(board, round.suggestions, boardsData.boardSize);
+      return { userId, xHandle: user?.xHandle || '', displayName: user?.displayName || '', score: result.score, hasBingo: result.hasBingo };
+    }).sort((a, b) => b.score - a.score);
 
   return json(entries);
 });
