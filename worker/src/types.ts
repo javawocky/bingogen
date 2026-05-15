@@ -4,6 +4,8 @@ export interface Env {
   ADMIN_PASSWORD: string;
   JWT_SECRET: string;
   CORS_ORIGIN: string;
+  AUTH0_DOMAIN: string;
+  AUTH0_AUDIENCE: string;
 }
 
 export interface User {

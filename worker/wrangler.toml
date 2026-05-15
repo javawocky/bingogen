@@ -2,6 +2,7 @@ name = "motobingo-api"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
 
+# --- Local dev (wrangler dev) ---
 [dev]
 port = 8787
 
@@ -12,8 +13,38 @@ preview_id = "placeholder"
 
 [vars]
 ADMIN_USERNAME = "admin"
-CORS_ORIGIN = "http://localhost:4201"
+CORS_ORIGIN = "http://localhost:4200"
 
-# Secrets (set via wrangler secret put):
-# ADMIN_PASSWORD
-# JWT_SECRET
+# --- Test environment (wrangler deploy --env test) ---
+[env.test]
+name = "motobingo-api-test"
+
+[[env.test.kv_namespaces]]
+binding = "KV"
+id = "577f0f8455224fd7822ab66de3a9af1d"
+
+[env.test.vars]
+ADMIN_USERNAME = "admin"
+CORS_ORIGIN = "https://motobingo-test.pages.dev"
+AUTH0_DOMAIN = "dev-xlhmy2q3ti2zo0ad.us.auth0.com"
+AUTH0_AUDIENCE = "https://motobingo-api"
+
+# --- Production environment (wrangler deploy --env prod) ---
+[env.prod]
+name = "motobingo-api-prod"
+
+[[env.prod.kv_namespaces]]
+binding = "KV"
+id = "c6de0c0c315142b0957c777bb27ef7c7"
+
+[env.prod.vars]
+ADMIN_USERNAME = "admin"
+CORS_ORIGIN = "https://motobingo.pages.dev"
+AUTH0_DOMAIN = "dev-xlhmy2q3ti2zo0ad.us.auth0.com"
+AUTH0_AUDIENCE = "https://motobingo-api"
+
+# Secrets per environment (set via):
+#   wrangler secret put ADMIN_PASSWORD --env test
+#   wrangler secret put JWT_SECRET --env test
+#   wrangler secret put ADMIN_PASSWORD --env prod
+#   wrangler secret put JWT_SECRET --env prod

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../services/api.service';
+import { AuthService } from '../services/auth.service';
 import {
   User, Championship, Season, Round, Suggestion,
   BoardResponse, LeaderboardEntry, SeasonLeaderboardEntry
@@ -17,7 +18,8 @@ import {
 export class PublicComponent implements OnInit, OnDestroy {
   playerHandle = '';
   identifiedUserId: string | null = null;
-  showHandleInput = true;
+  isAuthenticated = false;
+  authLoading = true;
 
   users: User[] = [];
   activeRound: Round | null = null;
@@ -31,36 +33,49 @@ export class PublicComponent implements OnInit, OnDestroy {
 
   publicSuggestionText = '';
   suggestionSubmitted = false;
+  suggestionError = '';
   voterId = '';
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private api: ApiService, private route: ActivatedRoute) {}
+  constructor(private api: ApiService, private authService: AuthService, private route: ActivatedRoute) {}
 
   ngOnInit() {
-    // Check query param first, then cookie
-    const handleParam = this.route.snapshot.queryParamMap.get('handle');
-    if (handleParam) {
-      this.playerHandle = handleParam.replace(/^@/, '');
-      this.showHandleInput = false;
-      this.setCookie('motobingo_handle', this.playerHandle, 365);
-    } else {
-      const saved = this.getCookie('motobingo_handle');
-      if (saved) {
-        this.playerHandle = saved;
-        this.showHandleInput = false;
-      }
-    }
     this.voterId = this.getCookie('motobingo_voterid') || '';
     if (!this.voterId) {
       this.voterId = crypto.randomUUID();
       this.setCookie('motobingo_voterid', this.voterId, 365);
     }
+
+    this.authService.isLoading$.subscribe(loading => this.authLoading = loading);
+    this.authService.isAuthenticated$.subscribe(authed => {
+      this.isAuthenticated = authed;
+      if (authed) this.loadMe();
+    });
+
     this.loadUsers();
     this.loadActiveRound();
   }
 
   ngOnDestroy() { this.stopPolling(); }
+
+  login() { this.authService.login(); }
+  logout() { this.authService.logout(); }
+
+  private loadMe() {
+    this.authService.getXHandle().subscribe(handle => {
+      const param = handle ? `?handle=${encodeURIComponent(handle)}` : '';
+      this.api.getMe(handle || undefined).subscribe({
+        next: (res) => {
+          this.playerHandle = res.user.xHandle;
+          this.identifiedUserId = res.user.id;
+          this.loadUsers();
+          if (this.activeRound) this.viewBoard(res.user.id);
+        },
+        error: () => {}
+      });
+    });
+  }
 
   loadActiveRound() {
     this.api.getActiveRound().subscribe(res => {
@@ -82,34 +97,7 @@ export class PublicComponent implements OnInit, OnDestroy {
   }
 
   loadUsers() {
-    this.api.getUsers().subscribe(u => {
-      this.users = u;
-      if (this.playerHandle) this.identifyPlayer();
-    });
-  }
-
-  identifyPlayer() {
-    const handle = this.playerHandle.trim().replace(/^@/, '');
-    if (!handle) return;
-    this.playerHandle = handle;
-    this.showHandleInput = false;
-    this.setCookie('motobingo_handle', handle, 365);
-    const user = this.users.find(u => u.xHandle.toLowerCase() === handle.toLowerCase());
-    if (user) {
-      this.identifiedUserId = user.id;
-      if (this.activeRound) this.viewBoard(user.id);
-    } else {
-      this.identifiedUserId = null;
-    }
-  }
-
-  clearIdentity() {
-    this.identifiedUserId = null;
-    this.playerHandle = '';
-    this.showHandleInput = true;
-    this.viewingBoard = null;
-    this.viewingBoardUserId = null;
-    this.deleteCookie('motobingo_handle');
+    this.api.getUsers().subscribe(u => this.users = u);
   }
 
   refreshRound() {
@@ -182,7 +170,6 @@ export class PublicComponent implements OnInit, OnDestroy {
 
   toggleVote(s: { id: string }) {
     if (!this.activeRound) return;
-    // Optimistically update the vote count in the current list
     const suggestion = this.activeRound.suggestions.find(x => x.id === s.id);
     if (suggestion) {
       if (!suggestion.votes) suggestion.votes = [];
@@ -196,11 +183,16 @@ export class PublicComponent implements OnInit, OnDestroy {
 
   submitPublicSuggestion() {
     if (!this.activeRound || !this.publicSuggestionText.trim()) return;
-    this.api.getCsrf().subscribe(csrf => {
-      this.api.submitSuggestion(this.activeRound!.id, this.publicSuggestionText, csrf.token).subscribe({
-        next: () => { this.publicSuggestionText = ''; this.suggestionSubmitted = true; },
-        error: () => alert('Failed to submit suggestion'),
-      });
+    this.suggestionError = '';
+    this.api.submitSuggestion(this.activeRound.id, this.publicSuggestionText).subscribe({
+      next: () => { this.publicSuggestionText = ''; this.suggestionSubmitted = true; this.suggestionError = ''; },
+      error: (e) => {
+        if (e.status === 401) {
+          this.suggestionError = 'Please login to submit suggestions';
+        } else {
+          this.suggestionError = e.error?.error || 'Something went wrong. Please try again.';
+        }
+      },
     });
   }
 
@@ -211,9 +203,7 @@ export class PublicComponent implements OnInit, OnDestroy {
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
   }
 
-  get boardPreviewSize(): number {
-    return 5;
-  }
+  get boardPreviewSize(): number { return 5; }
 
   get boardPreviewSquares(): { text: string; isFree: boolean; isEmpty: boolean; completed: boolean }[] {
     const size = this.boardPreviewSize;
@@ -251,9 +241,5 @@ export class PublicComponent implements OnInit, OnDestroy {
   private getCookie(name: string): string | null {
     const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
     return match ? match[1] : null;
-  }
-
-  private deleteCookie(name: string) {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
   }
 }

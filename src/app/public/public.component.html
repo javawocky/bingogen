@@ -2,12 +2,11 @@
   <header class="header">
     <h1>🏁 MotoBingo</h1>
     <div class="header-actions">
-      @if (playerHandle && !showHandleInput) {
+      @if (isAuthenticated) {
         <span class="identified-badge" [class.unmatched]="!identifiedUserId">@{{ playerHandle }}</span>
-        <button class="btn-small" (click)="clearIdentity()">✕</button>
-      } @else {
-        <input type="text" [(ngModel)]="playerHandle" (keyup.enter)="identifyPlayer()" placeholder="Your X handle" class="handle-input">
-        <button class="btn-small" (click)="identifyPlayer()">Go</button>
+        <button class="btn-small" (click)="logout()">Logout</button>
+      } @else if (!authLoading) {
+        <button class="btn-small btn-login" (click)="login()">Login with 𝕏</button>
       }
     </div>
   </header>
@@ -26,7 +25,13 @@
     <div class="round-content">
       <!-- Handle prompt when in boards+ phase and not identified -->
       @if (activeRound.phase !== 'suggestions' && !identifiedUserId) {
-        <div class="handle-prompt">Enter your X handle above to see your board — or someone else's ;)</div>
+        <div class="handle-prompt">
+          @if (!isAuthenticated) {
+            <button class="btn-small btn-login" (click)="login()">Login with 𝕏</button> to see your board
+          } @else {
+            Loading your board...
+          }
+        </div>
       }
 
       <!-- Cut-off message (boards phase) -->
@@ -50,15 +55,20 @@
         </section>
       }
 
-      <!-- Suggestion form (suggestions phase only) -->
+      <!-- Suggestion form (suggestions phase only, logged in only) -->
       @if (activeRound.phase === 'suggestions') {
         <section class="panel">
           <h3>Suggest a Bingo Square</h3>
-          <div class="suggestion-form">
-            <input type="text" [(ngModel)]="publicSuggestionText" (keyup.enter)="submitPublicSuggestion()" placeholder="e.g. Rider crashes in whoops section..." maxlength="200">
-            <button (click)="submitPublicSuggestion()">Submit</button>
-          </div>
-          @if (suggestionSubmitted) { <p class="success">Suggestion submitted for review!</p> }
+          @if (isAuthenticated) {
+            <div class="suggestion-form">
+              <input type="text" [(ngModel)]="publicSuggestionText" (keyup.enter)="submitPublicSuggestion()" placeholder="e.g. Rider crashes in whoops section..." maxlength="200">
+              <button (click)="submitPublicSuggestion()">Submit</button>
+            </div>
+            @if (suggestionSubmitted) { <p class="success">Suggestion submitted for review!</p> }
+            @if (suggestionError) { <p class="error">{{ suggestionError }}</p> }
+          } @else {
+            <p class="login-prompt"><button class="btn-small btn-login" (click)="login()">Login with 𝕏</button> to suggest squares</p>
+          }
         </section>
       }
 

@@ -19,28 +19,15 @@
       @if (isAdmin) {
         <button class="btn-small btn-danger" (click)="logout()">Logout</button>
       } @else {
-        <button class="btn-small" (click)="toggleLogin()">Login</button>
+        <button class="btn-small" (click)="login()">Login with 𝕏</button>
       }
     </div>
   </header>
 
-  <!-- Login modal -->
-  @if (showLogin) {
-    <div class="modal-overlay" (click)="toggleLogin()">
-      <div class="modal-content" (click)="$event.stopPropagation()">
-        <h2>Admin Login</h2>
-        <input type="text" [(ngModel)]="loginUsername" placeholder="Username" (keyup.enter)="login()">
-        <input type="password" [(ngModel)]="loginPassword" placeholder="Password" (keyup.enter)="login()">
-        @if (loginError) { <p class="error">{{ loginError }}</p> }
-        <button (click)="login()">Login</button>
-      </div>
-    </div>
-  }
-
   @if (!isAdmin) {
     <div class="empty-state">
-      <p>Please log in to access the admin panel.</p>
-      <button (click)="toggleLogin()">Login</button>
+      <p>Please log in with an admin account to access the admin panel.</p>
+      <button (click)="login()">Login with 𝕏</button>
     </div>
   } @else {
 

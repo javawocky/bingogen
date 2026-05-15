@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api.service';
+import { AuthService } from '../services/auth.service';
 import {
   User, Championship, Season, Round, Suggestion,
   BoardResponse, LeaderboardEntry, BoardSquare
@@ -16,10 +17,7 @@ import {
 export class AdminComponent implements OnInit, OnDestroy {
   // Auth
   isAdmin = false;
-  loginUsername = '';
-  loginPassword = '';
   loginError = '';
-  showLogin = false;
 
   // Player identification
   playerHandle = '';
@@ -77,15 +75,19 @@ export class AdminComponent implements OnInit, OnDestroy {
   // Polling
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private authService: AuthService) {}
 
   ngOnInit() {
-    if (sessionStorage.getItem('admin_token')) {
-      this.isAdmin = true;
-    }
-
-    const saved = this.getCookie('motobingo_handle');
-    if (saved) this.playerHandle = saved;
+    this.authService.isAdmin$.subscribe(isAdmin => {
+      this.isAdmin = isAdmin;
+      if (isAdmin) this.refreshRound();
+    });
+    this.authService.getXHandle().subscribe(handle => {
+      if (handle) {
+        this.playerHandle = handle;
+        this.identifyPlayer();
+      }
+    });
 
     this.loadChampionships();
     this.loadUsers();
@@ -103,26 +105,8 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   // --- Auth ---
-  toggleLogin() { this.showLogin = !this.showLogin; this.loginError = ''; }
-
-  login() {
-    this.api.login(this.loginUsername, this.loginPassword).subscribe({
-      next: (res) => {
-        sessionStorage.setItem('admin_token', res.token);
-        this.isAdmin = true;
-        this.showLogin = false;
-        this.loginError = '';
-        this.refreshRound();
-      },
-      error: () => { this.loginError = 'Invalid credentials'; }
-    });
-  }
-
-  logout() {
-    sessionStorage.removeItem('admin_token');
-    this.isAdmin = false;
-    this.refreshRound();
-  }
+  login() { this.authService.login(); }
+  logout() { this.authService.logout(); }
 
   // --- Player identification ---
   identifyPlayer() {
@@ -449,7 +433,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   // --- Admin: Suggestions ---
   addSuggestion() {
     if (!this.activeRound || !this.newSuggestionText.trim()) return;
-    this.api.adminAddSuggestion(this.activeRound.id, this.newSuggestionText).subscribe(() => {
+    this.api.adminSubmitSuggestion(this.activeRound.id, this.newSuggestionText).subscribe(() => {
       this.newSuggestionText = '';
       this.refreshRound();
     });
@@ -530,11 +514,9 @@ export class AdminComponent implements OnInit, OnDestroy {
   // --- Public: Suggestions ---
   submitPublicSuggestion() {
     if (!this.activeRound || !this.publicSuggestionText.trim()) return;
-    this.api.getCsrf().subscribe(csrf => {
-      this.api.submitSuggestion(this.activeRound!.id, this.publicSuggestionText, csrf.token).subscribe({
-        next: () => { this.publicSuggestionText = ''; this.suggestionSubmitted = true; },
-        error: () => alert('Failed to submit suggestion'),
-      });
+    this.api.submitSuggestion(this.activeRound.id, this.publicSuggestionText).subscribe({
+      next: () => { this.publicSuggestionText = ''; this.suggestionSubmitted = true; },
+      error: () => alert('Failed to submit suggestion'),
     });
   }
 

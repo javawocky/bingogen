@@ -1,9 +1,14 @@
 import { Router, json, cors } from './router';
-import { createJwt, requireAdmin } from './auth';
+import { requireAdmin as requireAdminAuth0, requireAuth } from './auth0';
 import { calculateScore, generateBoard, updateBoardIntelligently } from './scoring';
 import { Env, User, Championship, Season, Round, RoundBoards, Suggestion } from './types';
 
 const router = new Router();
+
+// Helper: check admin (Auth0 role-based)
+async function requireAdmin(req: Request, env: Env): Promise<boolean> {
+  return requireAdminAuth0(req, env);
+}
 
 // --- Auth ---
 router.post('/api/v1/auth/login', async (req, env) => {
@@ -11,8 +16,33 @@ router.post('/api/v1/auth/login', async (req, env) => {
   if (username !== env.ADMIN_USERNAME || password !== env.ADMIN_PASSWORD) {
     return json({ error: 'Invalid credentials' }, 401);
   }
+  // Legacy admin login — kept for backwards compat
+  const { createJwt } = await import('./auth');
   const token = await createJwt({ role: 'admin', sub: username }, env.JWT_SECRET);
   return json({ token });
+});
+
+// --- Auth0: Get or create user from token ---
+router.get('/api/v1/auth/me', async (req, env) => {
+  const payload = await requireAuth(req, env);
+  if (!payload) return json({ error: 'Unauthorized' }, 401);
+
+  // Try screen_name from token, or from query param (frontend passes it from ID token)
+  const url = new URL(req.url);
+  const xHandle = ((payload['https://motobingo.app/screen_name'] as string) || (payload.nickname as string) || url.searchParams.get('handle') || '').replace(/^@/, '');
+  if (!xHandle) return json({ error: 'Could not determine X handle' }, 400);
+
+  const users = (await env.KV.get('users', 'json') as User[] | null) || [];
+  let user = users.find(u => u.xHandle.toLowerCase() === xHandle.toLowerCase());
+
+  if (!user) {
+    user = { id: crypto.randomUUID(), xHandle, displayName: xHandle, createdAt: new Date().toISOString() };
+    users.push(user);
+    await env.KV.put('users', JSON.stringify(users));
+  }
+
+  const roles: string[] = payload['https://motobingo.app/roles'] || [];
+  return json({ user, roles });
 });
 
 // --- CSRF ---
@@ -331,24 +361,21 @@ router.post('/api/v1/rounds/:id/suggestions', async (req, env, params) => {
   if (!round) return json({ error: 'Not found' }, 404);
 
   const isAdmin = await requireAdmin(req, env);
+  const authPayload = !isAdmin ? await requireAuth(req, env) : null;
 
-  // Non-admin: check CSRF and phase
-  if (!isAdmin) {
-    if (round.phase !== 'suggestions') return json({ error: 'Suggestions are closed' }, 400);
-    const csrfToken = req.headers.get('X-CSRF-Token');
-    if (!csrfToken) return json({ error: 'CSRF token required' }, 403);
-    const csrfValid = await env.KV.get(`csrf:${csrfToken}`);
-    if (!csrfValid) return json({ error: 'Invalid CSRF token' }, 403);
-    await env.KV.delete(`csrf:${csrfToken}`);
-  }
+  // Must be logged in (admin or authenticated user)
+  if (!isAdmin && !authPayload) return json({ error: 'Login required to submit suggestions' }, 401);
 
-  const { text } = await req.json() as { text: string };
+  // Non-admin: check phase
+  if (!isAdmin && round.phase !== 'suggestions') return json({ error: 'Suggestions are closed' }, 400);
+
+  const { text, adminApprove } = await req.json() as { text: string; adminApprove?: boolean };
   if (!text?.trim()) return json({ error: 'text required' }, 400);
   if (text.trim().length > 200) return json({ error: 'text must be 200 characters or less' }, 400);
 
   const suggestion: Suggestion = {
     id: crypto.randomUUID(), text: text.trim().slice(0, 200),
-    status: isAdmin ? 'approved' : 'pending',
+    status: (isAdmin && adminApprove) ? 'approved' : 'pending',
     selected: false, completed: false, votes: [], createdAt: new Date().toISOString(),
   };
   round.suggestions.push(suggestion);

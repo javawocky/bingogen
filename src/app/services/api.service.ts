@@ -13,19 +13,10 @@ export class ApiService {
 
   constructor(private http: HttpClient) {}
 
-  private get adminHeaders(): HttpHeaders {
-    const token = sessionStorage.getItem('admin_token');
-    return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-  }
-
   // Auth
-  login(username: string, password: string): Observable<{ token: string }> {
-    return this.http.post<{ token: string }>(`${this.base}/auth/login`, { username, password });
-  }
-
-  // CSRF
-  getCsrf(): Observable<{ token: string }> {
-    return this.http.get<{ token: string }>(`${this.base}/csrf`);
+  getMe(handle?: string): Observable<{ user: User; roles: string[] }> {
+    const params = handle ? `?handle=${encodeURIComponent(handle)}` : '';
+    return this.http.get<{ user: User; roles: string[] }>(`${this.base}/auth/me${params}`);
   }
 
   // Users
@@ -34,15 +25,15 @@ export class ApiService {
   }
 
   createUser(xHandle: string, displayName: string): Observable<User> {
-    return this.http.post<User>(`${this.base}/users`, { xHandle, displayName }, { headers: this.adminHeaders });
+    return this.http.post<User>(`${this.base}/users`, { xHandle, displayName });
   }
 
   updateUser(id: string, data: Partial<User>): Observable<User> {
-    return this.http.put<User>(`${this.base}/users/${id}`, data, { headers: this.adminHeaders });
+    return this.http.put<User>(`${this.base}/users/${id}`, data);
   }
 
   deleteUser(id: string): Observable<unknown> {
-    return this.http.delete(`${this.base}/users/${id}`, { headers: this.adminHeaders });
+    return this.http.delete(`${this.base}/users/${id}`);
   }
 
   // Championships
@@ -51,7 +42,7 @@ export class ApiService {
   }
 
   createChampionship(name: string, shortCode: string): Observable<Championship> {
-    return this.http.post<Championship>(`${this.base}/championships`, { name, shortCode }, { headers: this.adminHeaders });
+    return this.http.post<Championship>(`${this.base}/championships`, { name, shortCode });
   }
 
   // Seasons
@@ -60,7 +51,7 @@ export class ApiService {
   }
 
   createSeason(championshipId: string, year: number): Observable<Season> {
-    return this.http.post<Season>(`${this.base}/championships/${championshipId}/seasons`, { year }, { headers: this.adminHeaders });
+    return this.http.post<Season>(`${this.base}/championships/${championshipId}/seasons`, { year });
   }
 
   // Active round
@@ -69,7 +60,7 @@ export class ApiService {
   }
 
   setActiveRound(roundId: string | null): Observable<unknown> {
-    return this.http.put(`${this.base}/active-round`, { roundId }, { headers: this.adminHeaders });
+    return this.http.put(`${this.base}/active-round`, { roundId });
   }
 
   // Rounds
@@ -78,47 +69,40 @@ export class ApiService {
   }
 
   getRound(roundId: string): Observable<Round> {
-    return this.http.get<Round>(`${this.base}/rounds/${roundId}`, { headers: this.adminHeaders });
+    return this.http.get<Round>(`${this.base}/rounds/${roundId}`);
   }
 
   createRound(seasonId: string, data: { name: string; eventDate: string; phaseDates?: Round['phaseDates'] }): Observable<Round> {
-    return this.http.post<Round>(`${this.base}/seasons/${seasonId}/rounds`, data, { headers: this.adminHeaders });
+    return this.http.post<Round>(`${this.base}/seasons/${seasonId}/rounds`, data);
   }
 
   deleteRound(id: string): Observable<unknown> {
-    return this.http.delete(`${this.base}/rounds/${id}`, { headers: this.adminHeaders });
+    return this.http.delete(`${this.base}/rounds/${id}`);
   }
 
   updateRound(roundId: string, data: Partial<Round>): Observable<Round> {
-    return this.http.put<Round>(`${this.base}/rounds/${roundId}`, data, { headers: this.adminHeaders });
+    return this.http.put<Round>(`${this.base}/rounds/${roundId}`, data);
   }
 
   advancePhase(roundId: string, phase: Round['phase']): Observable<Round> {
-    return this.http.put<Round>(`${this.base}/rounds/${roundId}/phase`, { phase }, { headers: this.adminHeaders });
+    return this.http.put<Round>(`${this.base}/rounds/${roundId}/phase`, { phase });
   }
 
   // Suggestions
-  submitSuggestion(roundId: string, text: string, csrfToken: string): Observable<Suggestion> {
-    return this.http.post<Suggestion>(
-      `${this.base}/rounds/${roundId}/suggestions`, { text },
-      { headers: new HttpHeaders({ 'X-CSRF-Token': csrfToken }) }
-    );
+  submitSuggestion(roundId: string, text: string): Observable<Suggestion> {
+    return this.http.post<Suggestion>(`${this.base}/rounds/${roundId}/suggestions`, { text });
   }
 
-  adminAddSuggestion(roundId: string, text: string): Observable<Suggestion> {
-    return this.http.post<Suggestion>(
-      `${this.base}/rounds/${roundId}/suggestions`, { text }, { headers: this.adminHeaders }
-    );
+  adminSubmitSuggestion(roundId: string, text: string): Observable<Suggestion> {
+    return this.http.post<Suggestion>(`${this.base}/rounds/${roundId}/suggestions`, { text, adminApprove: true });
   }
 
   updateSuggestion(roundId: string, suggestionId: string, data: Partial<Suggestion>): Observable<Suggestion> {
-    return this.http.put<Suggestion>(
-      `${this.base}/rounds/${roundId}/suggestions/${suggestionId}`, data, { headers: this.adminHeaders }
-    );
+    return this.http.put<Suggestion>(`${this.base}/rounds/${roundId}/suggestions/${suggestionId}`, data);
   }
 
   deleteSuggestion(roundId: string, suggestionId: string): Observable<unknown> {
-    return this.http.delete(`${this.base}/rounds/${roundId}/suggestions/${suggestionId}`, { headers: this.adminHeaders });
+    return this.http.delete(`${this.base}/rounds/${roundId}/suggestions/${suggestionId}`);
   }
 
   voteSuggestion(roundId: string, suggestionId: string, voterId: string): Observable<{ votes: number; voted: boolean }> {
@@ -129,18 +113,16 @@ export class ApiService {
 
   // Players in round
   addPlayersToRound(roundId: string, userIds: string[]): Observable<Round> {
-    return this.http.post<Round>(`${this.base}/rounds/${roundId}/players`, { userIds }, { headers: this.adminHeaders });
+    return this.http.post<Round>(`${this.base}/rounds/${roundId}/players`, { userIds });
   }
 
   removePlayerFromRound(roundId: string, userId: string): Observable<unknown> {
-    return this.http.delete(`${this.base}/rounds/${roundId}/players/${userId}`, { headers: this.adminHeaders });
+    return this.http.delete(`${this.base}/rounds/${roundId}/players/${userId}`);
   }
 
   // Boards
   generateBoards(roundId: string): Observable<{ boardSize: number; playerCount: number }> {
-    return this.http.post<{ boardSize: number; playerCount: number }>(
-      `${this.base}/rounds/${roundId}/generate-boards`, {}, { headers: this.adminHeaders }
-    );
+    return this.http.post<{ boardSize: number; playerCount: number }>(`${this.base}/rounds/${roundId}/generate-boards`, {});
   }
 
   getBoard(roundId: string, userId: string): Observable<BoardResponse> {

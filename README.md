@@ -1,59 +1,85 @@
-# Bingo
+# MotoBingo
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.0.7.
+Motocross bingo game — Angular frontend on Cloudflare Pages, API on Cloudflare Workers + KV.
 
-## Development server
+## Prerequisites
 
-To start a local development server, run:
+- Node 22+ (`nvm use 22`)
+- Cloudflare account (free tier)
+- `wrangler` CLI (`npm i -g wrangler` then `wrangler login`)
 
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Local Development
 
 ```bash
-ng generate component component-name
+# Frontend (terminal 1)
+npm install
+npm start
+# → http://localhost:4200
+
+# Backend (terminal 2)
+cd worker
+npm install
+npm run dev
+# → http://localhost:8787
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Deployment
+
+### First-time setup
+
+**1. Create KV namespaces:**
+```bash
+cd worker
+npx wrangler kv namespace create KV --env test
+npx wrangler kv namespace create KV --env prod
+```
+Copy the output IDs into `worker/wrangler.toml` (replace the `REPLACE_WITH_*` placeholders).
+
+**2. Set secrets:**
+```bash
+npx wrangler secret put ADMIN_PASSWORD --env test
+npx wrangler secret put JWT_SECRET --env test
+npx wrangler secret put ADMIN_PASSWORD --env prod
+npx wrangler secret put JWT_SECRET --env prod
+```
+
+**3. Create Pages projects:**
+```bash
+cd ..
+npx wrangler pages project create motobingo-test
+npx wrangler pages project create motobingo
+```
+
+**4. Update environment files** with your actual URLs:
+- `src/environments/environment.test.ts` — test Worker URL
+- `src/environments/environment.prod.ts` — prod Worker URL
+
+### Deploying
 
 ```bash
-ng generate --help
+# Backend
+cd worker
+npm run deploy:test    # deploys to motobingo-api-test.*.workers.dev
+npm run deploy:prod    # deploys to motobingo-api-prod.*.workers.dev
+
+# Frontend
+cd ..
+npm run deploy:test    # builds test config, deploys to motobingo-test.pages.dev
+npm run deploy:prod    # builds prod config, deploys to motobingo.pages.dev
 ```
 
-## Building
+## Environments
 
-To build the project run:
+| | Local | Test | Prod |
+|---|---|---|---|
+| Frontend | localhost:4200 | motobingo-test.pages.dev | motobingo.pages.dev |
+| Backend | localhost:8787 | motobingo-api-test.*.workers.dev | motobingo-api-prod.*.workers.dev |
+| KV | local (wrangler dev) | motobingo-kv-test | motobingo-kv-prod |
+
+## Testing
 
 ```bash
-ng build
+ng test                              # unit tests (watch mode)
+ng test --watch=false --browsers=ChromeHeadless  # CI-friendly
+npx playwright test                  # e2e tests
 ```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
