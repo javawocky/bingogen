@@ -35,6 +35,8 @@ export class PublicComponent implements OnInit, OnDestroy {
   publicSuggestionText = '';
   suggestionSubmitted = false;
   suggestionError = '';
+  showSuggestionModal = false;
+  toastMessage = '';
   voterId = '';
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -186,7 +188,12 @@ export class PublicComponent implements OnInit, OnDestroy {
     if (!this.activeRound || !this.publicSuggestionText.trim()) return;
     this.suggestionError = '';
     this.api.submitSuggestion(this.activeRound.id, this.publicSuggestionText).subscribe({
-      next: () => { this.publicSuggestionText = ''; this.suggestionSubmitted = true; this.suggestionError = ''; },
+      next: () => {
+        this.publicSuggestionText = '';
+        this.suggestionSubmitted = true;
+        this.showSuggestionModal = false;
+        this.showToast('Suggestion submitted! 🎉');
+      },
       error: (e) => {
         if (e.status === 401) {
           this.suggestionError = 'Please login to submit suggestions';
@@ -238,6 +245,16 @@ export class PublicComponent implements OnInit, OnDestroy {
       isEmpty: false,
       completed: sq.completed,
     }));
+  }
+
+  formatDate(dateStr: string): string {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  showToast(message: string) {
+    this.toastMessage = message;
+    setTimeout(() => this.toastMessage = '', 3000);
   }
 
   getUserById(id: string): User | undefined {

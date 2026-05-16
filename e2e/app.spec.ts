@@ -211,7 +211,7 @@ test.describe('Public Page', () => {
   test('no phase badge visible', async ({ page }) => {
     await apiPut('/active-round', { roundId: testRoundId });
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await page.waitForSelector('.header-round', { timeout: 5000 });
     await expect(page.locator('.phase-badge')).not.toBeVisible();
   });
 
@@ -228,8 +228,8 @@ test.describe('Public Page', () => {
   test('shows active round when set', async ({ page }) => {
     await apiPut('/active-round', { roundId: testRoundId });
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
-    await expect(page.locator('.round-header h2')).toContainText('TESTROUND');
+    await page.waitForSelector('.header-round', { timeout: 5000 });
+    await expect(page.locator('.header-round')).toContainText('TESTROUND');
   });
 
   test('shows "Bingo Board So Far" during suggestions phase', async ({ page }) => {
@@ -243,15 +243,15 @@ test.describe('Public Page', () => {
     await apiPut('/active-round', { roundId: testRoundId });
     await page.goto('/');
     await page.waitForSelector('.board-preview-panel', { timeout: 5000 });
-    await expect(page.locator('.preview-cell.free-cell')).toContainText('FREE');
-    const filled = page.locator('.preview-cell:not(.empty-cell):not(.free-cell)');
+    await expect(page.locator('.cell.free')).toContainText('FREE');
+    const filled = page.locator('.cell:not(.empty):not(.free)');
     await expect(filled).toHaveCount(2);
   });
 
   test('shows suggestion form with 200 char limit', async ({ page }) => {
     await apiPut('/active-round', { roundId: testRoundId });
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await page.waitForSelector('.header-round', { timeout: 5000 });
     const form = page.locator('.suggestion-form input');
     if (await form.isVisible({ timeout: 2000 }).catch(() => false)) {
       await expect(form).toHaveAttribute('maxlength', '200');
@@ -268,13 +268,13 @@ test.describe('Public Page', () => {
   test('switching active round changes public page', async ({ page }) => {
     await apiPut('/active-round', { roundId: testRoundId });
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
-    await expect(page.locator('.round-header h2')).toContainText('TESTROUND');
+    await page.waitForSelector('.header-round', { timeout: 5000 });
+    await expect(page.locator('.header-round')).toContainText('TESTROUND');
 
     await apiPut('/active-round', { roundId: futureRoundId });
     await page.reload();
-    await page.waitForSelector('.round-header', { timeout: 5000 });
-    await expect(page.locator('.round-header h2')).toContainText('TESTROUNDFUTURE');
+    await page.waitForSelector('.header-round', { timeout: 5000 });
+    await expect(page.locator('.header-round')).toContainText('TESTROUNDFUTURE');
     await apiPut('/active-round', { roundId: null });
   });
 });
@@ -356,8 +356,8 @@ test.describe('Admin Rounds', () => {
     await adminLogin(page);
     await adminNavToRound(page, 'TESTROUND');
     await expect(page.locator('.board-preview-panel')).toBeVisible();
-    await expect(page.locator('.preview-cell.free-cell')).toContainText('FREE');
-    const filled = page.locator('.preview-cell:not(.empty-cell):not(.free-cell)');
+    await expect(page.locator('.cell.free')).toContainText('FREE');
+    const filled = page.locator('.cell:not(.empty):not(.free)');
     await expect(filled).toHaveCount(2);
   });
 
@@ -383,8 +383,8 @@ test.describe('Admin Rounds', () => {
 
     // Public page shows TESTROUNDFUTURE
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
-    await expect(page.locator('.round-header h2')).toContainText('TESTROUNDFUTURE');
+    await page.waitForSelector('.header-round', { timeout: 5000 });
+    await expect(page.locator('.header-round')).toContainText('TESTROUNDFUTURE');
 
     // Admin page shows LIVE badge on TESTROUNDFUTURE
     await adminLogin(page);
@@ -484,7 +484,7 @@ test.describe('Race Day Phase', () => {
     await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' });
 
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await page.waitForSelector('.header-round', { timeout: 5000 });
     // Leaderboard should be visible if there are users
     const users = await apiGet('/users');
     if (users.length > 0) {
@@ -619,16 +619,16 @@ test.describe('Race Day Phase', () => {
     }
 
     // Find a clickable (non-free, non-empty) cell
-    const clickableCell = page.locator('.preview-cell.clickable').first();
+    const clickableCell = page.locator('.cell.clickable').first();
     if (await clickableCell.isVisible({ timeout: 2000 }).catch(() => false)) {
       // Click to mark complete
       await clickableCell.click();
       await page.waitForTimeout(500);
       // Cell should now have completed-cell class
-      await expect(page.locator('.preview-cell.completed-cell').first()).toBeVisible();
+      await expect(page.locator('.cell.completed').first()).toBeVisible();
 
       // Click again to unmark
-      await page.locator('.preview-cell.completed-cell').first().click();
+      await page.locator('.cell.completed').first().click();
       await page.waitForTimeout(500);
     }
 
@@ -665,7 +665,7 @@ test.describe('Shareable Links', () => {
     await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'boards' });
 
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await page.waitForSelector('.header-round', { timeout: 5000 });
     const lbRow = page.locator('.lb-row').first();
     if (await lbRow.isVisible({ timeout: 3000 }).catch(() => false)) {
       await lbRow.click();
@@ -738,7 +738,7 @@ test.describe('Championship Standings', () => {
     // Set round 2 as active and check public page shows standings
     await apiPut('/active-round', { roundId: standingsRound2Id });
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await page.waitForSelector('.header-round', { timeout: 5000 });
     await expect(page.locator('.standings-panel')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.standings-panel h3')).toContainText('Championship Standings');
     // Should show scores
@@ -756,7 +756,7 @@ test.describe('Championship Standings', () => {
     await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' });
 
     await page.goto('/');
-    await page.waitForSelector('.round-header', { timeout: 5000 });
+    await page.waitForSelector('.header-round', { timeout: 5000 });
     // Standings should be visible even in suggestions mode
     // (may be empty if no completed rounds, but the section should render if data exists)
     // Just verify the page loads without error

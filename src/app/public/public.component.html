@@ -1,6 +1,13 @@
 <div class="container">
   <header class="header">
     <h1>🏁 MotoBingo</h1>
+    @if (activeRound) {
+      <div class="header-center">
+        @if (championship) { <span class="champ-label">{{ championship.name }}</span> }
+        <span class="header-round">{{ activeRound.name }}</span>
+        <span class="event-date">{{ formatDate(activeRound.eventDate) }}</span>
+      </div>
+    }
     <div class="header-actions">
       @if (isAuthenticated) {
         <span class="identified-badge" [class.unmatched]="!identifiedUserId">@{{ playerHandle }}</span>
@@ -16,11 +23,6 @@
       <p>{{ noRoundMessage }}</p>
     </div>
   } @else if (activeRound) {
-    <div class="round-header">
-      @if (championship) { <span class="champ-label">{{ championship.name }}</span> }
-      <h2>{{ activeRound.name }}</h2>
-      <span class="event-date">{{ activeRound.eventDate }}</span>
-    </div>
 
     <div class="round-content">
       <!-- Handle prompt when in boards+ phase and not identified -->
@@ -49,43 +51,50 @@
         </section>
       }
 
-      <!-- Suggestion form (suggestions phase only, logged in only) -->
+      <!-- Approved suggestions (only during suggestions phase) -->
       @if (activeRound.phase === 'suggestions') {
         <section class="panel">
-          <h3>Suggest a Bingo Square</h3>
-          @if (isAuthenticated) {
-            <div class="suggestion-form">
-              <input type="text" [(ngModel)]="publicSuggestionText" (keyup.enter)="submitPublicSuggestion()" placeholder="e.g. Rider crashes in whoops section..." maxlength="200">
-              <button (click)="submitPublicSuggestion()">Submit</button>
+          <div class="suggestions-header">
+            <h3>Suggestions</h3>
+            @if (isAuthenticated) {
+              <button class="btn-small" (click)="showSuggestionModal = true">+ Add a Suggestion</button>
+            } @else {
+              <button class="btn-small btn-login" (click)="login()">Login to suggest</button>
+            }
+          </div>
+          @if (sortedSuggestions.length > 0) {
+            <div class="suggestions-list">
+              @for (s of sortedSuggestions; track s.id) {
+                <div class="suggestion-row" [class.completed]="s.completed">
+                  <span class="suggestion-text" [class.strikethrough]="s.completed">{{ s.text }}</span>
+                  <div class="suggestion-meta">
+                    @if (s.completed) { <span class="badge badge-complete">✓</span> }
+                    <button class="vote-btn" [class.voted]="hasVoted(s)" (click)="toggleVote(s)">▲ {{ s.votes?.length || 0 }}</button>
+                  </div>
+                </div>
+              }
             </div>
-            @if (suggestionSubmitted) { <p class="success">Suggestion submitted for review!</p> }
-            @if (suggestionError) { <p class="error">{{ suggestionError }}</p> }
-          } @else {
-            <p class="login-prompt"><button class="btn-small btn-login" (click)="login()">Login with 𝕏</button> to suggest squares</p>
           }
         </section>
       }
 
-      <!-- Approved suggestions (only during suggestions phase) -->
-      @if (activeRound.phase === 'suggestions' && sortedSuggestions.length > 0) {
-        <section class="panel">
-          <h3>Suggestions</h3>
-          <div class="suggestions-list">
-            @for (s of sortedSuggestions; track s.id) {
-              <div class="suggestion-row" [class.completed]="s.completed">
-                <span class="suggestion-text" [class.strikethrough]="s.completed">{{ s.text }}</span>
-                <div class="suggestion-meta">
-                  @if (s.completed) { <span class="badge badge-complete">✓</span> }
-                  @if (activeRound.phase === 'suggestions') {
-                    <button class="vote-btn" [class.voted]="hasVoted(s)" (click)="toggleVote(s)">▲ {{ s.votes?.length || 0 }}</button>
-                  } @else {
-                    <span class="vote-count">▲ {{ s.votes?.length || 0 }}</span>
-                  }
-                </div>
-              </div>
-            }
+      <!-- Suggestion modal -->
+      @if (showSuggestionModal) {
+        <div class="modal-overlay" (click)="showSuggestionModal = false">
+          <div class="modal-content" (click)="$event.stopPropagation()">
+            <h3>Suggest a Bingo Square</h3>
+            <input type="text" [(ngModel)]="publicSuggestionText" (keyup.enter)="submitPublicSuggestion()" placeholder="e.g. Rider crashes in whoops section..." maxlength="200" autofocus>
+            <div class="modal-actions">
+              <button (click)="submitPublicSuggestion()">Submit</button>
+              <button class="btn-cancel" (click)="showSuggestionModal = false">Cancel</button>
+            </div>
           </div>
-        </section>
+        </div>
+      }
+
+      <!-- Toast -->
+      @if (toastMessage) {
+        <div class="toast">{{ toastMessage }}</div>
       }
 
       <div class="two-col">

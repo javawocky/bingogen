@@ -9,7 +9,7 @@
 .header h1 { margin: 0; font-size: 24px; color: #1a202c; }
 .header-actions { display: flex; gap: 8px; align-items: center; }
 .header-select {
-  padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 20px;
+  padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 5px;
   font-size: 13px; background: #fff; color: #1a202c; cursor: pointer;
 }
 .header-select option { background: #fff; color: #1a202c; }
@@ -22,13 +22,13 @@
 .nav-btn {
   display: block; width: 100%; text-align: left; padding: 8px 12px;
   margin-bottom: 4px; background: #fff; border: 1px solid #e2e8f0;
-  border-radius: 8px; cursor: pointer; font-size: 14px; color: #1a202c;
+  border-radius: 5px; cursor: pointer; font-size: 14px; color: #1a202c;
 }
 .nav-btn:hover { background: #f1f5f9; }
 .nav-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
 .nav-select {
   width: 100%; padding: 8px 12px; margin-bottom: 8px;
-  border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px;
+  border: 1px solid #e2e8f0; border-radius: 5px; font-size: 14px;
   background: #fff; color: #1a202c;
 }
 .nav-select option { background: #fff; color: #1a202c; }
@@ -68,13 +68,13 @@
 /* Forms */
 .admin-form { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .admin-form input {
-  padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px;
+  padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 5px;
   font-size: 14px; background: #fff; color: #1a202c;
 }
 .admin-form input::placeholder { color: #94a3b8; }
 .admin-form input:focus { outline: none; border-color: #2563eb; }
 .handle-input {
-  width: 140px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 20px;
+  width: 140px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 5px;
   font-size: 13px; background: #fff; color: #1a202c;
 }
 .handle-input::placeholder { color: #94a3b8; }
@@ -82,11 +82,11 @@
 /* Buttons */
 button {
   padding: 8px 16px; background: #2563eb; color: white; border: none;
-  border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: bold;
+  border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold;
 }
 button:hover { background: #1d4ed8; }
 .btn-small { padding: 4px 10px; font-size: 13px; }
-.btn-tiny { padding: 2px 8px; font-size: 12px; border-radius: 12px; }
+.btn-tiny { padding: 2px 8px; font-size: 12px; border-radius: 5px; }
 .btn-danger { background: #dc2626; }
 .btn-danger:hover { background: #b91c1c; }
 .btn-approve { background: #16a34a; }
@@ -119,7 +119,7 @@ button:hover { background: #1d4ed8; }
 .strikethrough { text-decoration: line-through; color: #94a3b8; }
 .select-toggle { font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: #1a202c; }
 .edit-input {
-  flex: 1; padding: 4px 8px; border: 1px solid #2563eb; border-radius: 8px;
+  flex: 1; padding: 4px 8px; border: 1px solid #2563eb; border-radius: 5px;
   font-size: 14px; background: #fff; color: #1a202c;
 }
 
@@ -162,7 +162,7 @@ button:hover { background: #1d4ed8; }
 .modal-content h2 { color: #1a202c; margin-top: 0; }
 .modal-content input {
   display: block; width: 100%; margin-bottom: 12px; padding: 10px;
-  border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box;
+  border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box;
   background: #fff; color: #1a202c;
 }
 .modal-content input::placeholder { color: #94a3b8; }
