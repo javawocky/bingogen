@@ -1,0 +1,15 @@
+<div class="board" [style.grid-template-columns]="gridCols">
+  @for (sq of squares; track $index) {
+    <div class="cell"
+      [class.free]="sq.isFree"
+      [class.empty]="sq.isEmpty"
+      [class.completed]="sq.completed"
+      [class.clickable]="sq.clickable"
+      [class.mark-1]="sq.completed && sq.markVariant === 1"
+      [class.mark-2]="sq.completed && sq.markVariant === 2"
+      [class.mark-3]="sq.completed && sq.markVariant === 3"
+      (click)="onCellClick($index)">
+      {{ sq.isFree ? '⭐ FREE' : sq.text }}
+    </div>
+  }
+</div>

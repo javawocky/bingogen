@@ -87,20 +87,7 @@
           <!-- Board Preview -->
           <section class="panel board-preview-panel">
             <h3>Board Preview @if (boardIsFull) { <span class="board-full-check">✅</span> } @else { <span class="info">({{ selectedSuggestionCount }}/{{ maxBoardSquares }} squares filled)</span> }</h3>
-            <div class="board-preview" [style.grid-template-columns]="'repeat(' + boardPreviewSize + ', 1fr)'">
-              @for (sq of boardPreviewSquares; track $index) {
-                <div class="preview-cell"
-                  [class.free-cell]="sq.isFree"
-                  [class.empty-cell]="sq.isEmpty"
-                  [class.mark-x]="sq.completed && sq.markVariant === 1"
-                  [class.mark-circle]="sq.completed && sq.markVariant === 2"
-                  [class.mark-scribble]="sq.completed && sq.markVariant === 3"
-                  [class.clickable]="isAdmin && !sq.isFree && !sq.isEmpty && (activeRound.phase === 'boards' || activeRound.phase === 'raceday')"
-                  (click)="onBoardCellClick(sq)">
-                  {{ sq.isFree ? '⭐ FREE' : sq.text }}
-                </div>
-              }
-            </div>
+            <app-bingo-board [squares]="previewBoardCells" [size]="boardPreviewSize" (cellClick)="onPreviewCellClick($event)"></app-bingo-board>
           </section>
 
           <!-- Suggestions panel -->
@@ -194,13 +181,7 @@
                 @if (viewingBoard.hasBingo) { <span class="bingo-badge">🎉 BINGO!</span> }
               </h3>
               <p>Score: <strong>{{ viewingBoard.score }}</strong></p>
-              <div class="bingo-grid" [style.grid-template-columns]="getGridCols(viewingBoard.boardSize)">
-                @for (sq of viewingBoard.squares; track sq.position) {
-                  <div class="bingo-cell" [class.completed]="sq.completed" [class.free-cell]="sq.suggestionId === 'FREE'">
-                    {{ sq.text }}
-                  </div>
-                }
-              </div>
+              <app-bingo-board [squares]="viewingBoardCells" [size]="viewingBoard.boardSize"></app-bingo-board>
               <div class="board-actions">
                 <button class="btn-small" (click)="shareToX(viewingBoardUserId!)">Share to 𝕏</button>
               </div>

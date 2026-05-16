@@ -55,6 +55,6 @@ export function cors(response: Response, origin: string): Response {
   const headers = new Headers(response.headers);
   headers.set('Access-Control-Allow-Origin', origin);
   headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, X-Dev-User, X-Dev-Role');
   return new Response(response.body, { status: response.status, headers });
 }

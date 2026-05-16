@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api.service';
 import { AuthService } from '../services/auth.service';
+import { BingoBoardComponent, BingoBoardSquare } from '../shared/bingo-board.component';
 import {
   User, Championship, Season, Round, Suggestion,
   BoardResponse, LeaderboardEntry, BoardSquare
@@ -12,7 +13,7 @@ import {
   selector: 'app-admin',
   templateUrl: './admin.component.html',
   styleUrls: ['./admin.component.css'],
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BingoBoardComponent],
 })
 export class AdminComponent implements OnInit, OnDestroy {
   // Auth
@@ -600,6 +601,33 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   getGridCols(boardSize: number): string {
     return `repeat(${boardSize}, 1fr)`;
+  }
+
+  get viewingBoardCells(): BingoBoardSquare[] {
+    if (!this.viewingBoard) return [];
+    return this.viewingBoard.squares.map(sq => ({
+      text: sq.suggestionId === 'FREE' ? '' : sq.text,
+      isFree: sq.suggestionId === 'FREE',
+      isEmpty: false,
+      completed: sq.completed,
+    }));
+  }
+
+  get previewBoardCells(): BingoBoardSquare[] {
+    const canClick = this.isAdmin && this.activeRound && (this.activeRound.phase === 'boards' || this.activeRound.phase === 'raceday');
+    return this.boardPreviewSquares.map(sq => ({
+      text: sq.text,
+      isFree: sq.isFree,
+      isEmpty: sq.isEmpty,
+      completed: sq.completed,
+      clickable: !!(canClick && !sq.isFree && !sq.isEmpty && sq.suggestionId),
+      markVariant: sq.markVariant,
+    }));
+  }
+
+  onPreviewCellClick(index: number) {
+    const sq = this.boardPreviewSquares[index];
+    if (sq) this.onBoardCellClick(sq);
   }
 
   private setCookie(name: string, value: string, days: number) {

@@ -45,13 +45,7 @@
       @if (activeRound.phase === 'suggestions' || !viewingBoard) {
         <section class="panel board-preview-panel">
           <h3>{{ activeRound.phase === 'suggestions' ? 'Bingo Board So Far' : 'Bingo Board' }}</h3>
-          <div class="board-preview" [style.grid-template-columns]="'repeat(' + boardPreviewSize + ', 1fr)'">
-            @for (sq of boardPreviewSquares; track $index) {
-              <div class="preview-cell" [class.free-cell]="sq.isFree" [class.empty-cell]="sq.isEmpty" [class.completed-cell]="sq.completed">
-                {{ sq.isFree ? '⭐ FREE' : sq.text }}
-              </div>
-            }
-          </div>
+          <app-bingo-board [squares]="previewBoardCells" [size]="boardPreviewSize"></app-bingo-board>
         </section>
       }
 
@@ -108,13 +102,7 @@
               }
             </div>
             <p>Score: <strong>{{ viewingBoard.score }}</strong></p>
-            <div class="bingo-grid" [style.grid-template-columns]="getGridCols(viewingBoard.boardSize)">
-              @for (sq of viewingBoard.squares; track sq.position) {
-                <div class="bingo-cell" [class.completed]="sq.completed" [class.free-cell]="sq.suggestionId === 'FREE'">
-                  {{ sq.text }}
-                </div>
-              }
-            </div>
+            <app-bingo-board [squares]="viewingBoardCells" [size]="viewingBoard.boardSize"></app-bingo-board>
             <div class="board-actions">
               <button class="btn-small" (click)="shareToX(viewingBoardUserId!)">Share to 𝕏</button>
             </div>

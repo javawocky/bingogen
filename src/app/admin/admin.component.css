@@ -133,32 +133,8 @@ button:hover { background: #1d4ed8; }
 .btn-link { background: #e2e8f0; color: #1a202c; }
 .btn-link:hover { background: #2563eb; color: white; }
 
-/* Bingo grid */
+/* Bingo grid — handled by shared BingoBoardComponent */
 .board-preview-panel { max-width: 600px; }
-.board-preview { display: grid; gap: 0; padding: 0; overflow: hidden; border: 2px solid #e2e8f0; background: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.7)), url('/assets/turkey.png') center/cover no-repeat; }
-.preview-cell {
-  background: transparent; display: flex; align-items: center; justify-content: center;
-  padding: 10px 6px; text-align: center; font-size: 14px; min-height: 70px;
-  word-break: break-word; color: #1a202c; border: 1px solid #334155;
-}
-.preview-cell.free-cell { background: transparent; color: #b45309; font-weight: bold; font-size: 16px; }
-.preview-cell.empty-cell { background: transparent; border: 1px dashed #334155; color: #94a3b8; }
-.preview-cell.mark-x, .preview-cell.mark-circle, .preview-cell.mark-scribble { position: relative; }
-.preview-cell.mark-x::after, .preview-cell.mark-circle::after, .preview-cell.mark-scribble::after {
-  content: ''; position: absolute; top: 5%; left: 5%; width: 90%; height: 90%; pointer-events: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10,10 Q25,18 40,35 Q55,52 90,90' stroke='%23dc2626' stroke-width='5' fill='none' stroke-linecap='round' opacity='0.7'/%3E%3Cpath d='M90,10 Q75,22 60,38 Q45,55 10,90' stroke='%23dc2626' stroke-width='5' fill='none' stroke-linecap='round' opacity='0.7'/%3E%3C/svg%3E") no-repeat center/contain;
-}
-.preview-cell.clickable { cursor: pointer; }
-.preview-cell.clickable:hover { background: rgba(37, 99, 235, 0.08); }
-
-.bingo-grid { display: grid; gap: 2px; background: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.7)), url('/assets/turkey.png') center/cover no-repeat; padding: 2px; }
-.bingo-cell {
-  background: transparent; display: flex; align-items: center; justify-content: center;
-  padding: 12px 8px; text-align: center; font-size: 13px; min-height: 60px;
-  word-break: break-word; color: #1a202c;
-}
-.bingo-cell.completed { background: rgba(22, 163, 74, 0.1); color: #16a34a; font-weight: bold; }
-.bingo-cell.free-cell { background: transparent; color: #b45309; font-weight: bold; }
 .board-actions { margin-top: 12px; display: flex; gap: 8px; }
 .board-panel { max-width: 500px; }
 .board-full-check { color: #16a34a; }

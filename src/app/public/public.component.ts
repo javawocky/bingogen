@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../services/api.service';
 import { AuthService } from '../services/auth.service';
+import { BingoBoardComponent, BingoBoardSquare } from '../shared/bingo-board.component';
 import {
   User, Championship, Season, Round, Suggestion,
   BoardResponse, LeaderboardEntry, SeasonLeaderboardEntry
@@ -13,7 +14,7 @@ import {
   selector: 'app-public',
   templateUrl: './public.component.html',
   styleUrls: ['./public.component.css'],
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BingoBoardComponent],
 })
 export class PublicComponent implements OnInit, OnDestroy {
   playerHandle = '';
@@ -223,6 +224,20 @@ export class PublicComponent implements OnInit, OnDestroy {
       }
     }
     return squares;
+  }
+
+  get previewBoardCells(): BingoBoardSquare[] {
+    return this.boardPreviewSquares;
+  }
+
+  get viewingBoardCells(): BingoBoardSquare[] {
+    if (!this.viewingBoard) return [];
+    return this.viewingBoard.squares.map(sq => ({
+      text: sq.suggestionId === 'FREE' ? '' : sq.text,
+      isFree: sq.suggestionId === 'FREE',
+      isEmpty: false,
+      completed: sq.completed,
+    }));
   }
 
   getUserById(id: string): User | undefined {
