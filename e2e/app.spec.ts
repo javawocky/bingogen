@@ -285,7 +285,7 @@ test.describe('Player Identification', () => {
   test('shows login button when not authenticated', async ({ page }) => {
     await page.goto('/');
     await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
-    await expect(page.locator('.btn-login')).toBeVisible();
+    await expect(page.locator('.desktop-only .btn-login')).toBeVisible();
   });
 });
 
@@ -804,5 +804,181 @@ test.describe('Admin Suggestions', () => {
     await adminLogin(page);
     await adminNavToRound(page, 'TESTROUND');
     await expect(page.locator('.vote-count').first()).toBeVisible();
+  });
+});
+
+// ── Mobile Responsive ──
+
+test.describe('Mobile Responsive', () => {
+  test.use({ viewport: { width: 375, height: 667 } });
+
+  test('hamburger visible, desktop nav hidden when authenticated', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    // Simulate authenticated user via route interception
+    const now = Math.floor(Date.now() / 1000);
+    const b64url = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+    const fakeIdToken = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
+      sub: 'dev|mobileuser', nickname: 'mobileuser', 'https://motobingo.app/screen_name': 'mobileuser',
+      'https://motobingo.app/roles': [], exp: now + 86400, iat: now,
+      aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/', nonce: 'n',
+    }) + '.fake';
+    await page.route('**/oauth/token', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', token_type: 'Bearer', expires_in: 86400,
+      }) });
+    });
+    const key = '@@auth0spajs@@::sgbZkzh0cgUxFTaabQjAZw8WGl371yaC::https://motobingo-api::openid profile email offline_access';
+    const cache = { body: { client_id: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', scope: 'openid profile email offline_access', audience: 'https://motobingo-api', expires_in: 86400, token_type: 'Bearer', decodedToken: { encoded: { header: fakeIdToken.split('.')[0], payload: fakeIdToken.split('.')[1], signature: 'fake' }, header: { alg: 'RS256', typ: 'JWT' }, claims: { __raw: fakeIdToken, sub: 'dev|mobileuser', nickname: 'mobileuser', 'https://motobingo.app/screen_name': 'mobileuser', 'https://motobingo.app/roles': [], exp: now + 86400, iat: now, aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/' }, user: { sub: 'dev|mobileuser', nickname: 'mobileuser', 'https://motobingo.app/screen_name': 'mobileuser', 'https://motobingo.app/roles': [] } } }, expiresAt: now + 86400 };
+    await page.addInitScript(`localStorage.setItem('${key}', ${JSON.stringify(JSON.stringify(cache))});`);
+    await page.route('**/api/v1/**', async route => { await route.continue({ headers: { ...route.request().headers(), 'X-Dev-User': 'mobileuser', 'X-Dev-Role': '' } }); });
+    await page.goto('/');
+    await page.waitForTimeout(2000);
+    await expect(page.locator('.hamburger')).toBeVisible();
+    await expect(page.locator('.header-actions.desktop-only')).not.toBeVisible();
+  });
+
+  test('login button shows directly on mobile when not authenticated', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
+    await expect(page.locator('.btn-login.mobile-only')).toBeVisible();
+    await expect(page.locator('.hamburger')).not.toBeVisible();
+  });
+
+  test('board fits within viewport without overflow', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('.board-preview-panel', { timeout: 5000 });
+    const board = page.locator('app-bingo-board .board');
+    const box = await board.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+  });
+
+  test('board title shows round name on mobile', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('.board-preview-panel', { timeout: 5000 });
+    await expect(page.locator('.mobile-only', { hasText: 'Board So Far for' })).toBeVisible();
+    await expect(page.locator('.round-name-truncate')).toContainText('TESTROUND');
+  });
+});
+
+// ── Suggestion Modal ──
+
+test.describe('Suggestion Modal', () => {
+  test('add suggestion button visible in suggestions section', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' });
+    await page.goto('/');
+    await page.waitForSelector('.suggestions-header', { timeout: 5000 });
+    // Not authenticated — shows login prompt
+    await expect(page.locator('.suggestions-header .btn-login')).toBeVisible();
+  });
+
+  test('clicking add opens modal', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    // Need to be authenticated to see the button
+    const now = Math.floor(Date.now() / 1000);
+    const b64url = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+    const fakeIdToken = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
+      sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser',
+      'https://motobingo.app/roles': [], exp: now + 86400, iat: now,
+      aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/', nonce: 'n',
+    }) + '.fake';
+    await page.route('**/oauth/token', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', token_type: 'Bearer', expires_in: 86400,
+      }) });
+    });
+    const key = '@@auth0spajs@@::sgbZkzh0cgUxFTaabQjAZw8WGl371yaC::https://motobingo-api::openid profile email offline_access';
+    const cache = { body: { client_id: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', scope: 'openid profile email offline_access', audience: 'https://motobingo-api', expires_in: 86400, token_type: 'Bearer', decodedToken: { encoded: { header: fakeIdToken.split('.')[0], payload: fakeIdToken.split('.')[1], signature: 'fake' }, header: { alg: 'RS256', typ: 'JWT' }, claims: { __raw: fakeIdToken, sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [], exp: now + 86400, iat: now, aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/' }, user: { sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [] } } }, expiresAt: now + 86400 };
+    await page.addInitScript(`localStorage.setItem('${key}', ${JSON.stringify(JSON.stringify(cache))});`);
+    await page.route('**/api/v1/**', async route => { await route.continue({ headers: { ...route.request().headers(), 'X-Dev-User': 'modaluser', 'X-Dev-Role': '' } }); });
+    await page.goto('/');
+    await page.waitForSelector('.suggestions-header', { timeout: 5000 });
+    await page.locator('.suggestions-header button', { hasText: 'Add a Suggestion' }).click();
+    await expect(page.locator('.modal-overlay')).toBeVisible();
+    await expect(page.locator('.modal-content input')).toBeVisible();
+  });
+
+  test('modal closes on cancel', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    const now = Math.floor(Date.now() / 1000);
+    const b64url = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+    const fakeIdToken = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
+      sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser',
+      'https://motobingo.app/roles': [], exp: now + 86400, iat: now,
+      aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/', nonce: 'n',
+    }) + '.fake';
+    await page.route('**/oauth/token', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', token_type: 'Bearer', expires_in: 86400,
+      }) });
+    });
+    const key = '@@auth0spajs@@::sgbZkzh0cgUxFTaabQjAZw8WGl371yaC::https://motobingo-api::openid profile email offline_access';
+    const cache = { body: { client_id: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', scope: 'openid profile email offline_access', audience: 'https://motobingo-api', expires_in: 86400, token_type: 'Bearer', decodedToken: { encoded: { header: fakeIdToken.split('.')[0], payload: fakeIdToken.split('.')[1], signature: 'fake' }, header: { alg: 'RS256', typ: 'JWT' }, claims: { __raw: fakeIdToken, sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [], exp: now + 86400, iat: now, aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/' }, user: { sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [] } } }, expiresAt: now + 86400 };
+    await page.addInitScript(`localStorage.setItem('${key}', ${JSON.stringify(JSON.stringify(cache))});`);
+    await page.route('**/api/v1/**', async route => { await route.continue({ headers: { ...route.request().headers(), 'X-Dev-User': 'modaluser', 'X-Dev-Role': '' } }); });
+    await page.goto('/');
+    await page.waitForSelector('.suggestions-header', { timeout: 5000 });
+    await page.locator('.suggestions-header button', { hasText: 'Add a Suggestion' }).click();
+    await expect(page.locator('.modal-overlay')).toBeVisible();
+    await page.locator('.btn-cancel').click();
+    await expect(page.locator('.modal-overlay')).not.toBeVisible();
+  });
+
+  test('shows login button instead of add when not authenticated', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('.suggestions-header', { timeout: 5000 });
+    await expect(page.locator('.suggestions-header .btn-login')).toBeVisible();
+  });
+});
+
+// ── Shared Board Component ──
+
+test.describe('Shared Board Component', () => {
+  test('board renders 25 cells for 5x5', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('app-bingo-board', { timeout: 5000 });
+    await expect(page.locator('app-bingo-board .cell')).toHaveCount(25);
+  });
+
+  test('FREE cell present in center', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('app-bingo-board', { timeout: 5000 });
+    await expect(page.locator('app-bingo-board .cell.free')).toContainText('FREE');
+  });
+
+  test('uses app-bingo-board component', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('app-bingo-board', { timeout: 5000 });
+    await expect(page.locator('app-bingo-board')).toBeVisible();
+  });
+});
+
+// ── Nav Bar & Date Format ──
+
+test.describe('Nav Bar', () => {
+  test('round name and date in header center on desktop', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('.header-round', { timeout: 5000 });
+    await expect(page.locator('.header-center')).toBeVisible();
+    await expect(page.locator('.header-round')).toContainText('TESTROUND');
+    await expect(page.locator('.event-date')).toBeVisible();
+  });
+
+  test('date formatted as day month year', async ({ page }) => {
+    await apiPut('/active-round', { roundId: testRoundId });
+    await page.goto('/');
+    await page.waitForSelector('.event-date', { timeout: 5000 });
+    const dateText = await page.locator('.event-date').textContent();
+    // Should be like "15 Jun 2026" not "2026-06-15"
+    expect(dateText).toMatch(/\d{1,2}\s\w{3}\s\d{4}/);
   });
 });
