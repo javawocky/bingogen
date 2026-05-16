@@ -8,7 +8,7 @@
         <span class="event-date">{{ formatDate(activeRound.eventDate) }}</span>
       </div>
     }
-    <div class="header-actions">
+    <div class="header-actions desktop-only">
       @if (isAuthenticated) {
         <span class="identified-badge" [class.unmatched]="!identifiedUserId">@{{ playerHandle }}</span>
         <button class="btn-small" (click)="logout()">Logout</button>
@@ -16,6 +16,17 @@
         <button class="btn-small btn-login" (click)="login()">Login with 𝕏</button>
       }
     </div>
+    @if (isAuthenticated) {
+      <button class="hamburger mobile-only" (click)="menuOpen = !menuOpen">☰</button>
+      @if (menuOpen) {
+        <div class="mobile-menu">
+          <span class="identified-badge" [class.unmatched]="!identifiedUserId">@{{ playerHandle }}</span>
+          <button class="btn-small" (click)="logout(); menuOpen = false">Logout</button>
+        </div>
+      }
+    } @else if (!authLoading) {
+      <button class="btn-small btn-login mobile-only" (click)="login()">Login with 𝕏</button>
+    }
   </header>
 
   @if (noRoundMessage) {
@@ -46,7 +57,10 @@
       <!-- Board Preview (suggestions phase only, or boards+ when no user board) -->
       @if (activeRound.phase === 'suggestions' || !viewingBoard) {
         <section class="panel board-preview-panel">
-          <h3>{{ activeRound.phase === 'suggestions' ? 'Bingo Board So Far' : 'Bingo Board' }}</h3>
+          <h3 class="board-title">
+            <span class="desktop-only">{{ activeRound.phase === 'suggestions' ? 'Bingo Board So Far' : 'Bingo Board' }}</span>
+            <span class="mobile-only">Board So Far for <span class="round-name-truncate">{{ activeRound.name }}</span></span>
+          </h3>
           <app-bingo-board [squares]="previewBoardCells" [size]="boardPreviewSize"></app-bingo-board>
         </section>
       }

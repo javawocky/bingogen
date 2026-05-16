@@ -1,6 +1,6 @@
 /* Light theme */
 /* Layout */
-.container { max-width: 900px; margin: 0 auto; padding: 0 20px; color: #1a202c; }
+.container { max-width: 900px; margin: 0 auto; padding: 0 12px; color: #1a202c; overflow: hidden; }
 
 .header {
   display: flex; justify-content: space-between; align-items: center;
@@ -10,6 +10,25 @@
 .header-center { display: flex; align-items: center; gap: 10px; }
 .header-round { font-weight: 700; font-size: 16px; color: #1a202c; }
 .header-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Hamburger menu */
+.hamburger { background: none; border: none; font-size: 24px; padding: 4px 8px; color: #1a202c; cursor: pointer; display: none; }
+.mobile-menu {
+  position: absolute; top: 100%; right: 12px; background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100;
+}
+.desktop-only { display: flex; gap: 8px; align-items: center; }
+.mobile-only { display: none !important; }
+
+@media (max-width: 600px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: inline !important; }
+  .header-center { display: none; }
+  .header { position: relative; }
+}
+
+.round-name-truncate { max-width: 20ch; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 
 /* Round info */
 .champ-label { font-size: 13px; color: #64748b; background: #f1f5f9; padding: 4px 10px; border-radius: 12px; }
@@ -81,9 +100,9 @@ button:hover { background: #1d4ed8; }
 .suggestion-text { color: #1a202c; }
 
 /* Bingo grid — handled by shared BingoBoardComponent */
-.board-preview-panel { max-width: 600px; margin: 0 auto 24px; }
+.board-preview-panel { max-width: 600px; margin: 0 auto 24px; width: 100%; }
 .board-actions { margin-top: 12px; display: flex; gap: 8px; }
-.board-panel { max-width: 500px; margin: 0 auto; }
+.board-panel { max-width: 500px; margin: 0 auto; width: 100%; }
 .board-header-row { display: flex; justify-content: space-between; align-items: center; }
 .board-header-row h3 { margin: 0; }
 .btn-back { background: #64748b; }

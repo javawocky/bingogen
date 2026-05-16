@@ -37,6 +37,7 @@ export class PublicComponent implements OnInit, OnDestroy {
   suggestionError = '';
   showSuggestionModal = false;
   toastMessage = '';
+  menuOpen = false;
   voterId = '';
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;

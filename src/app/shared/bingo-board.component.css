@@ -1,13 +1,14 @@
 .board {
   display: grid; gap: 0; padding: 0; overflow: hidden;
-  border: 2px solid #e2e8f0;
+  border: 2px solid #e2e8f0; width: 100%;
   background: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.7)), url('/assets/turkey.png') center/cover no-repeat;
 }
 
 .cell {
   background: transparent; display: flex; align-items: center; justify-content: center;
-  padding: 6px; text-align: center; font-size: 13px; aspect-ratio: 1;
+  padding: 4px; text-align: center; font-size: clamp(10px, 2.5vw, 13px); aspect-ratio: 1;
   word-break: break-word; color: #1a202c; border: 1px solid #334155; font-weight: 600;
+  overflow: hidden;
 }
 
 .cell.free { color: #b45309; font-weight: bold; font-size: 15px; }
