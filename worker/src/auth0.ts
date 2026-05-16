@@ -79,12 +79,35 @@ export function getTokenFromRequest(request: Request): string | null {
 }
 
 export async function requireAuth(request: Request, env: Env): Promise<TokenPayload | null> {
+  // Dev bypass: accept X-Dev-User header in local dev
+  if (env.DEV_BYPASS_AUTH === 'true') {
+    const devUser = request.headers.get('X-Dev-User');
+    if (devUser) {
+      const devRole = request.headers.get('X-Dev-Role');
+      return {
+        sub: `dev|${devUser}`,
+        nickname: devUser,
+        'https://motobingo.app/screen_name': devUser,
+        'https://motobingo.app/roles': devRole ? [devRole] : [],
+        aud: env.AUTH0_AUDIENCE || '',
+        iss: `https://${env.AUTH0_DOMAIN || 'dev'}/`,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      };
+    }
+  }
+
   const token = getTokenFromRequest(request);
   if (!token) return null;
   return verifyAuth0Token(token, env);
 }
 
 export async function requireAdmin(request: Request, env: Env): Promise<boolean> {
+  // Dev bypass: X-Dev-Role: admin
+  if (env.DEV_BYPASS_AUTH === 'true') {
+    const devRole = request.headers.get('X-Dev-Role');
+    if (devRole === 'admin') return true;
+  }
+
   const payload = await requireAuth(request, env);
   if (!payload) return false;
   const roles: string[] = payload['https://motobingo.app/roles'] || [];

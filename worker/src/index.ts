@@ -174,7 +174,9 @@ router.get('/api/v1/seasons/:id/leaderboard', async (_req, env, params) => {
 
   const userIds = new Set(users.map(u => u.id));
 
-  for (const round of rounds) {
+  for (const roundRef of rounds) {
+    const round = await env.KV.get(`round:${roundRef.id}`, 'json') as Round | null;
+    if (!round) continue;
     const boardsData = await env.KV.get(`round:${round.id}:boards`, 'json') as RoundBoards | null;
     if (!boardsData) continue;
     for (const [userId, board] of Object.entries(boardsData.boards)) {

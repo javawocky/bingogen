@@ -6,6 +6,7 @@ export interface Env {
   CORS_ORIGIN: string;
   AUTH0_DOMAIN: string;
   AUTH0_AUDIENCE: string;
+  DEV_BYPASS_AUTH?: string;
 }
 
 export interface User {
