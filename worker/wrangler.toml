@@ -41,7 +41,7 @@ id = "c6de0c0c315142b0957c777bb27ef7c7"
 
 [env.prod.vars]
 ADMIN_USERNAME = "admin"
-CORS_ORIGIN = "https://motobingo.pages.dev"
+CORS_ORIGIN = "https://turkeymxbingo.thefryup.com"
 AUTH0_DOMAIN = "dev-xlhmy2q3ti2zo0ad.us.auth0.com"
 AUTH0_AUDIENCE = "https://motobingo-api"
 
