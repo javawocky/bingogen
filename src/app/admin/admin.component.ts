@@ -166,10 +166,17 @@ export class AdminComponent implements OnInit, OnDestroy {
       if (match) {
         this.selectSeason(match);
       } else {
-        // Auto-select current year if it exists
+        // Auto-select current year if it exists, otherwise create it
         const currentYear = new Date().getFullYear();
         const current = s.find(se => se.year === currentYear);
-        if (current) this.selectSeason(current);
+        if (current) {
+          this.selectSeason(current);
+        } else if (this.selectedChampionship) {
+          this.api.createSeason(this.selectedChampionship.id, currentYear).subscribe(newSeason => {
+            this.seasons = [...s, newSeason];
+            this.selectSeason(newSeason);
+          });
+        }
       }
     });
   }
