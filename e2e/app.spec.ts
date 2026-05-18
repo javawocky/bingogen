@@ -200,7 +200,7 @@ test.afterAll(async () => {
 test.describe('Public Page', () => {
   test('page loads with title', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('h1')).toContainText('MotoBingo');
+    await expect(page.locator('h1')).toContainText('Turkey MX Bingo');
   });
 
   test('no sidebar visible', async ({ page }) => {
@@ -760,7 +760,7 @@ test.describe('Championship Standings', () => {
     // Standings should be visible even in suggestions mode
     // (may be empty if no completed rounds, but the section should render if data exists)
     // Just verify the page loads without error
-    await expect(page.locator('h1')).toContainText('MotoBingo');
+    await expect(page.locator('h1')).toContainText('Turkey MX Bingo');
 
     await apiPut('/active-round', { roundId: null });
   });

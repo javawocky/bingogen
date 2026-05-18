@@ -43,10 +43,10 @@ describe('AdminComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('should show MotoBingo title', () => {
+  it('should show Turkey MX Bingo title', () => {
     const fixture = createComponent();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('MotoBingo');
+    expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('Turkey MX Bingo');
   });
 
   it('should start as non-admin', () => {

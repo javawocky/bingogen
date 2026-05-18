@@ -207,7 +207,7 @@ export class PublicComponent implements OnInit, OnDestroy {
 
   shareToX(userId: string) {
     const user = this.users.find(u => u.id === userId);
-    const text = `Check out my MotoBingo board for ${this.activeRound?.name || 'the race'}! 🏁`;
+    const text = `Check out my Turkey MX Bingo board for ${this.activeRound?.name || 'the race'}! 🏁`;
     const url = `${window.location.origin}?round=${this.activeRound?.id}&user=${userId}`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
   }
