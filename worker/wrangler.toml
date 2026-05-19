@@ -34,6 +34,7 @@ AUTH0_AUDIENCE = "https://motobingo-api"
 # --- Production environment (wrangler deploy --env prod) ---
 [env.prod]
 name = "motobingo-api-prod"
+routes = [{ pattern = "api-turkeymxbingo.thefryup.com/*", zone_name = "thefryup.com" }]
 
 [[env.prod.kv_namespaces]]
 binding = "KV"
