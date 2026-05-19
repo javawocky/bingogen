@@ -7,13 +7,14 @@ import { authHttpInterceptorFn, provideAuth0 } from '@auth0/auth0-angular';
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
 import { devAuthInterceptorFn } from './services/dev-auth.interceptor';
+import { authErrorInterceptorFn } from './services/auth-error.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes, withComponentInputBinding()),
     provideAnimations(),
-    provideHttpClient(withInterceptors([devAuthInterceptorFn, authHttpInterceptorFn])),
+    provideHttpClient(withInterceptors([devAuthInterceptorFn, authHttpInterceptorFn, authErrorInterceptorFn])),
     provideAuth0({
       domain: environment.auth0.domain,
       clientId: environment.auth0.clientId,

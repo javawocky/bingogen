@@ -14,6 +14,7 @@ function getDevParams(): { user: string; role: string } | null {
 export class AuthService {
   private auth = inject(Auth0Service);
   private dev = getDevParams();
+  isSessionExpired = false;
 
   isAuthenticated$: Observable<boolean> = this.dev ? of(true) : this.auth.isAuthenticated$;
   isLoading$: Observable<boolean> = this.dev ? of(false) : this.auth.isLoading$;
