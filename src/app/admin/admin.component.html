@@ -155,6 +155,7 @@
                 <input type="text" [(ngModel)]="newUserName" placeholder="Display name">
                 <button (click)="createUser()">+ User</button>
               </div>
+              <div class="player-list">
               @for (u of users; track u.id) {
                 <div class="player-row" [class.active-player]="viewingBoardUserId === u.id" (click)="onUserClick(u.id)">
                   @if (editingUserId === u.id) {
@@ -170,6 +171,7 @@
                   }
                 </div>
               }
+              </div>
             </section>
           }
 
