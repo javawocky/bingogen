@@ -80,7 +80,7 @@ button:hover { background: #1d4ed8; }
 .btn-login:hover { background: #334155; }
 
 /* Suggestions */
-.suggestions-list { max-height: 220px; overflow-y: auto; }
+.suggestions-list { max-height: 440px; overflow-y: auto; }
 .suggestion-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 10px 12px; margin-bottom: 2px; background: #fff; border-radius: 8px;
@@ -109,7 +109,7 @@ button:hover { background: #1d4ed8; }
 .btn-back:hover { background: #475569; }
 
 /* Leaderboard */
-.leaderboard { border: 1px solid #e2e8f0; border-radius: 12px; overflow-y: auto; max-height: 240px; }
+.leaderboard { border: 1px solid #e2e8f0; border-radius: 12px; overflow-y: auto; max-height: 480px; }
 .lb-row {
   display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #e2e8f0; cursor: pointer;
   color: #1a202c;

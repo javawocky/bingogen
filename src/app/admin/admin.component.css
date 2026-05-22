@@ -98,7 +98,7 @@ button:hover { background: #1d4ed8; }
 .btn-cancel:hover { background: #475569; }
 
 /* Suggestions */
-.suggestions-list { max-height: 220px; overflow-y: auto; }
+.suggestions-list { max-height: 440px; overflow-y: auto; }
 .suggestions-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .suggestions-header h3 { margin: 0; }
 .filter-toggle { font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: #64748b; }
@@ -125,7 +125,7 @@ button:hover { background: #1d4ed8; }
 
 /* Players */
 .player-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; color: #1a202c; cursor: pointer; }
-.player-list { max-height: 220px; overflow-y: auto; }
+.player-list { max-height: 440px; overflow-y: auto; }
 .player-row:hover { background: #f1f5f9; border-radius: 8px; padding: 6px 8px; }
 .player-row span { flex: 1; }
 .player-row.active-player { background: rgba(37, 99, 235, 0.05); border-radius: 8px; padding: 6px 8px; }
@@ -141,7 +141,7 @@ button:hover { background: #1d4ed8; }
 .board-full-check { color: #16a34a; }
 
 /* Leaderboard */
-.leaderboard { border: 1px solid #e2e8f0; border-radius: 12px; overflow-y: auto; max-height: 240px; }
+.leaderboard { border: 1px solid #e2e8f0; border-radius: 12px; overflow-y: auto; max-height: 480px; }
 .lb-row {
   display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #e2e8f0; cursor: pointer; color: #1a202c;
 }
