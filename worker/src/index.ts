@@ -195,6 +195,35 @@ router.get('/api/v1/seasons/:id/leaderboard', async (_req, env, params) => {
   return json(leaderboard);
 });
 
+router.get('/api/v1/seasons/:id/user/:userId/boards', async (_req, env, params) => {
+  const rounds = (await env.KV.get(`season:${params.id}:rounds`, 'json') as Round[] | null) || [];
+  const users = (await env.KV.get('users', 'json') as User[] | null) || [];
+  const user = users.find(u => u.id === params.userId);
+  if (!user) return json({ error: 'User not found' }, 404);
+
+  const results: { roundId: string; roundName: string; eventDate: string; score: number; hasBingo: boolean; boardSize: number; squares: { position: number; suggestionId: string; text: string; completed: boolean }[] }[] = [];
+
+  for (const roundRef of rounds) {
+    const round = await env.KV.get(`round:${roundRef.id}`, 'json') as Round | null;
+    if (!round) continue;
+    const boardsData = await env.KV.get(`round:${round.id}:boards`, 'json') as RoundBoards | null;
+    if (!boardsData || !boardsData.boards[params.userId]) continue;
+    const board = boardsData.boards[params.userId];
+    const sugMap = new Map(round.suggestions.map(s => [s.id, s]));
+    const squares = board.squares.map(sq => ({
+      position: sq.position,
+      suggestionId: sq.suggestionId,
+      text: sq.suggestionId === 'FREE' ? 'FREE' : sugMap.get(sq.suggestionId)?.text || '',
+      completed: sq.suggestionId === 'FREE' || (sugMap.get(sq.suggestionId)?.completed ?? false),
+    }));
+    const result = calculateScore(board, round.suggestions, boardsData.boardSize);
+    results.push({ roundId: round.id, roundName: round.name, eventDate: round.eventDate, score: result.score, hasBingo: result.hasBingo, boardSize: boardsData.boardSize, squares });
+  }
+
+  results.sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
+  return json({ user: { id: user.id, displayName: user.displayName, xHandle: user.xHandle }, rounds: results });
+});
+
 router.get('/api/v1/rounds/:id', async (req, env, params) => {
   const round = await env.KV.get(`round:${params.id}`, 'json') as Round | null;
   if (!round) return json({ error: 'Not found' }, 404);

@@ -1,0 +1,29 @@
+<div class="container">
+  <button class="btn-back" (click)="goBack()">← Back</button>
+
+  @if (loading) {
+    <p class="loading">Loading...</p>
+  } @else if (error) {
+    <p class="error">{{ error }}</p>
+  } @else if (user) {
+    <h1>{{ user.displayName }} — Championship History</h1>
+
+    @if (rounds.length === 0) {
+      <p>No boards found for this championship.</p>
+    }
+
+    @for (round of rounds; track round.roundName) {
+      <section class="round-card">
+        <div class="round-header">
+          <h2>{{ round.roundName }}</h2>
+          <span class="round-date">{{ formatDate(round.eventDate) }}</span>
+        </div>
+        <p class="round-score">
+          Scored <strong>{{ round.score }}</strong> points
+          @if (round.hasBingo) { <span class="bingo-badge">🎉 BINGO!</span> }
+        </p>
+        <app-bingo-board [squares]="round.squares" [size]="round.boardSize"></app-bingo-board>
+      </section>
+    }
+  }
+</div>

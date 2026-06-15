@@ -137,4 +137,8 @@ export class ApiService {
   getSeasonLeaderboard(seasonId: string): Observable<SeasonLeaderboardEntry[]> {
     return this.http.get<SeasonLeaderboardEntry[]>(`${this.base}/seasons/${seasonId}/leaderboard`);
   }
+
+  getUserSeasonBoards(seasonId: string, userId: string): Observable<{ user: { id: string; displayName: string; xHandle: string }; rounds: { roundId: string; roundName: string; eventDate: string; score: number; hasBingo: boolean; boardSize: number; squares: { position: number; suggestionId: string; text: string; completed: boolean }[] }[] }> {
+    return this.http.get<any>(`${this.base}/seasons/${seasonId}/user/${userId}/boards`);
+  }
 }

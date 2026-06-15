@@ -157,7 +157,7 @@
             @for (entry of seasonLeaderboard; track entry.userId; let i = $index) {
               <div class="lb-row" [class.highlighted]="entry.userId === identifiedUserId">
                 <span class="lb-rank">{{ i + 1 }}</span>
-                <span class="lb-name">{{ entry.displayName }} @if (entry.bingos > 0) { <span class="bingo-badge">{{ entry.bingos }}x Bingo</span> }</span>
+                <a class="lb-name lb-name-link" [routerLink]="['/championship/history', entry.userId]" [queryParams]="{ season: season?.id }">{{ entry.displayName }} @if (entry.bingos > 0) { <span class="bingo-badge">{{ entry.bingos }}x Bingo</span> }</a>
                 <span class="lb-score">{{ entry.totalScore }}</span>
               </div>
             }

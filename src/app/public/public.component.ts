@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../services/api.service';
 import { AuthService } from '../services/auth.service';
 import { BingoBoardComponent, BingoBoardSquare } from '../shared/bingo-board.component';
@@ -14,7 +14,7 @@ import {
   selector: 'app-public',
   templateUrl: './public.component.html',
   styleUrls: ['./public.component.css'],
-  imports: [CommonModule, FormsModule, BingoBoardComponent],
+  imports: [CommonModule, FormsModule, BingoBoardComponent, RouterLink],
 })
 export class PublicComponent implements OnInit, OnDestroy {
   playerHandle = '';

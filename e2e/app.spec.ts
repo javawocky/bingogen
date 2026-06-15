@@ -982,3 +982,196 @@ test.describe('Nav Bar', () => {
     expect(dateText).toMatch(/\d{1,2}\s\w{3}\s\d{4}/);
   });
 });
+
+// ── Championship History Page ──
+
+test.describe('Championship History Page', () => {
+  let historySeasonId: string;
+  let historyRound1Id: string;
+  let historyRound2Id: string;
+  let historyActiveRoundId: string;
+  let historyUserId: string;
+
+  test.beforeAll(async () => {
+    // Use the MX championship to avoid conflicts with SX test data
+    const champs = await apiGet('/championships');
+    const mxChamp = champs.find((c: any) => c.shortCode === 'MX');
+
+    let seasons = await apiGet(`/championships/${mxChamp.id}/seasons`);
+    let season = seasons.find((s: any) => s.year === 2099);
+    if (!season) {
+      season = await apiPost(`/championships/${mxChamp.id}/seasons`, { year: 2099 });
+    }
+    historySeasonId = season.id;
+
+    // Create a test user for history
+    const users = await apiGet('/users');
+    let user = users.find((u: any) => u.xHandle === 'historyuser');
+    if (!user) {
+      user = await apiPost('/users', { xHandle: 'historyuser', displayName: 'History User' });
+    }
+    historyUserId = user.id;
+
+    // Create Round 1 with suggestions, boards, completions
+    const r1 = await apiPost(`/seasons/${historySeasonId}/rounds`, { name: 'Fox Raceway', eventDate: '2099-07-21' });
+    historyRound1Id = r1.id;
+    const suggestions1 = [];
+    for (let i = 1; i <= 24; i++) {
+      const s = await apiPost(`/rounds/${historyRound1Id}/suggestions`, { text: `R1 Square ${i}`, adminApprove: true });
+      suggestions1.push(s);
+    }
+    for (const s of suggestions1) {
+      await apiPut(`/rounds/${historyRound1Id}/suggestions/${s.id}`, { selected: true });
+    }
+    await apiPut(`/rounds/${historyRound1Id}/phase`, { phase: 'boards' });
+    // Mark some completed
+    for (let i = 0; i < 8; i++) {
+      await apiPut(`/rounds/${historyRound1Id}/suggestions/${suggestions1[i].id}`, { completed: true });
+    }
+    await apiPut(`/rounds/${historyRound1Id}/phase`, { phase: 'complete' });
+
+    // Create Round 2
+    const r2 = await apiPost(`/seasons/${historySeasonId}/rounds`, { name: 'RedBud', eventDate: '2099-08-04' });
+    historyRound2Id = r2.id;
+    const suggestions2 = [];
+    for (let i = 1; i <= 24; i++) {
+      const s = await apiPost(`/rounds/${historyRound2Id}/suggestions`, { text: `R2 Square ${i}`, adminApprove: true });
+      suggestions2.push(s);
+    }
+    for (const s of suggestions2) {
+      await apiPut(`/rounds/${historyRound2Id}/suggestions/${s.id}`, { selected: true });
+    }
+    await apiPut(`/rounds/${historyRound2Id}/phase`, { phase: 'boards' });
+    for (let i = 0; i < 12; i++) {
+      await apiPut(`/rounds/${historyRound2Id}/suggestions/${suggestions2[i].id}`, { completed: true });
+    }
+    await apiPut(`/rounds/${historyRound2Id}/phase`, { phase: 'complete' });
+
+    // Create an active round in boards phase (so standings show on public page)
+    const ar = await apiPost(`/seasons/${historySeasonId}/rounds`, { name: 'HistoryActive', eventDate: '2099-09-01' });
+    historyActiveRoundId = ar.id;
+    const arSugs = [];
+    for (let i = 1; i <= 24; i++) {
+      const s = await apiPost(`/rounds/${historyActiveRoundId}/suggestions`, { text: `Active ${i}`, adminApprove: true });
+      arSugs.push(s);
+    }
+    for (const s of arSugs) {
+      await apiPut(`/rounds/${historyActiveRoundId}/suggestions/${s.id}`, { selected: true });
+    }
+    await apiPut(`/rounds/${historyActiveRoundId}/phase`, { phase: 'boards' });
+  });
+
+  test.afterAll(async () => {
+    await apiPut('/active-round', { roundId: null });
+    await apiDelete(`/rounds/${historyRound1Id}`);
+    await apiDelete(`/rounds/${historyRound2Id}`);
+    await apiDelete(`/rounds/${historyActiveRoundId}`);
+    const users = await apiGet('/users');
+    const u = users.find((u: any) => u.xHandle === 'historyuser');
+    if (u) await apiDelete(`/users/${u.id}`);
+  });
+
+  test('navigates to history page from championship standings', async ({ page }) => {
+    await apiPut('/active-round', { roundId: historyActiveRoundId });
+    await page.goto('/');
+    await page.waitForSelector('.standings-panel', { timeout: 10000 });
+
+    // Click the user name link in standings
+    const link = page.locator('.standings-panel .lb-name-link', { hasText: 'History User' });
+    await expect(link).toBeVisible();
+    await link.click();
+
+    await expect(page).toHaveURL(new RegExp(`/championship/history/${historyUserId}`));
+  });
+
+  test('displays user name in heading', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await expect(page.locator('h1')).toContainText('History User');
+    await expect(page.locator('h1')).toContainText('Championship History');
+  });
+
+  test('shows all rounds in chronological order', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await page.waitForSelector('.round-card', { timeout: 10000 });
+
+    const cards = page.locator('.round-card');
+    const count = await cards.count();
+    expect(count).toBeGreaterThanOrEqual(2);
+
+    // First card should be Fox Raceway (earlier date), second RedBud
+    await expect(cards.nth(0).locator('h2')).toContainText('Fox Raceway');
+    await expect(cards.nth(1).locator('h2')).toContainText('RedBud');
+  });
+
+  test('shows formatted event date for each round', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await page.waitForSelector('.round-card', { timeout: 10000 });
+
+    // Date should be formatted like "21 July 2099"
+    const dateText = await page.locator('.round-date').first().textContent();
+    expect(dateText).toMatch(/21 July 2099/);
+  });
+
+  test('shows score for each round', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await page.waitForSelector('.round-card', { timeout: 10000 });
+
+    // Each round should show "Scored X points"
+    const scores = page.locator('.round-score');
+    const count = await scores.count();
+    expect(count).toBeGreaterThanOrEqual(2);
+    await expect(scores.first()).toContainText('Scored');
+    await expect(scores.first()).toContainText('points');
+  });
+
+  test('shows full bingo board for each round', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await page.waitForSelector('.round-card', { timeout: 10000 });
+
+    // Each round card should contain a bingo board with 25 cells
+    const boards = page.locator('app-bingo-board');
+    const boardCount = await boards.count();
+    expect(boardCount).toBeGreaterThanOrEqual(2);
+    await expect(boards.first().locator('.cell')).toHaveCount(25);
+  });
+
+  test('board shows completed cells marked', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await page.waitForSelector('.round-card', { timeout: 10000 });
+
+    // Should have some completed cells (we marked 8 in round 1)
+    const completedCells = page.locator('.round-card').first().locator('.cell.completed');
+    const count = await completedCells.count();
+    // At least the FREE cell + some of the 8 completed suggestions that landed on this user's board
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test('back button navigates to home', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await page.waitForSelector('.btn-back', { timeout: 10000 });
+
+    await page.locator('.btn-back').click();
+    await expect(page).toHaveURL('http://localhost:4200/');
+  });
+
+  test('shows error for invalid user', async ({ page }) => {
+    await page.goto(`/championship/history/nonexistent-user-id?season=${historySeasonId}`);
+    await page.waitForSelector('.error', { timeout: 10000 });
+    await expect(page.locator('.error')).toBeVisible();
+  });
+
+  test('shows empty state when no season param', async ({ page }) => {
+    await page.goto(`/championship/history/${historyUserId}`);
+    await expect(page.locator('.error')).toContainText('No season specified');
+  });
+
+  test('responsive: works on mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(`/championship/history/${historyUserId}?season=${historySeasonId}`);
+    await page.waitForSelector('.round-card', { timeout: 10000 });
+
+    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('.round-card').first()).toBeVisible();
+    await expect(page.locator('app-bingo-board').first()).toBeVisible();
+  });
+});
