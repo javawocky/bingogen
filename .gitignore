@@ -44,3 +44,5 @@ test-results/
 dist/
 worker/node_modules/
 worker/.wrangler/
+backups/
+scripts/

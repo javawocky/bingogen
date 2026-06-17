@@ -40,16 +40,25 @@ public class ActiveRoundController {
         try {
             ar = activeRoundRepository.get();
         } catch (Exception e) {
-            return ResponseEntity.ok(Map.of("round", nullVal(), "message", "No future round is ready to play just yet. Check back soon!"));
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("round", null);
+            resp.put("message", "No future round is ready to play just yet. Check back soon!");
+            return ResponseEntity.ok(resp);
         }
 
         if (ar.getRoundId() == null) {
-            return ResponseEntity.ok(Map.of("round", nullVal(), "message", "No future round is ready to play just yet. Check back soon!"));
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("round", null);
+            resp.put("message", "No future round is ready to play just yet. Check back soon!");
+            return ResponseEntity.ok(resp);
         }
 
         Round round = roundRepository.findById(ar.getRoundId()).orElse(null);
         if (round == null || "complete".equals(round.getPhase())) {
-            return ResponseEntity.ok(Map.of("round", nullVal(), "message", "No future round is ready to play just yet. Check back soon!"));
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("round", null);
+            resp.put("message", "No future round is ready to play just yet. Check back soon!");
+            return ResponseEntity.ok(resp);
         }
 
         // Filter to approved suggestions only for public
@@ -120,5 +129,4 @@ public class ActiveRoundController {
         return m;
     }
 
-    private Object nullVal() { return null; }
 }

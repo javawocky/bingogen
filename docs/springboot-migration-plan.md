@@ -1047,7 +1047,7 @@ jobs:
 # 1. SSH into instance
 ssh -i ~/.ssh/oci_key ubuntu@<PUBLIC_IP>
 
-# 2. Install Docker
+# 2. Install Docker 
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker ubuntu
 newgrp docker
