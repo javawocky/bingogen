@@ -71,6 +71,7 @@ async function adminNavToRound(page: import('@playwright/test').Page, roundName:
   await adminNavToSeason(page);
   await expect(page.locator('.round-nav-row').first()).toBeVisible({ timeout: 5000 });
   await page.getByRole('button', { name: roundName, exact: true }).first().click();
+  await page.waitForTimeout(500);
   await expect(page.locator('.round-header h2')).toContainText(roundName);
 }
 
@@ -713,8 +714,12 @@ test.describe('Admin Suggestions', () => {
   });
 
   test('can add and edit suggestion', async ({ page }) => {
+    // Ensure round is in suggestions phase
+    await apiPut(`/rounds/${testRoundId}/phase`, { phase: 'suggestions' });
     await adminLogin(page);
     await adminNavToRound(page, 'TESTROUND');
+    // Wait for suggestion section to render (phase must be loaded)
+    await page.waitForSelector('input[placeholder="Add suggestion (auto-approved)"]', { timeout: 5000 });
 
     await page.locator('input[placeholder="Add suggestion (auto-approved)"]').fill('E2E new suggestion');
     await page.getByRole('button', { name: '+ Add' }).click();
@@ -748,25 +753,10 @@ test.describe('Mobile Responsive', () => {
 
   test('hamburger visible, desktop nav hidden when authenticated', async ({ page }) => {
     await apiPut('/active-round', { roundId: testRoundId });
-    // Simulate authenticated user via route interception
-    const now = Math.floor(Date.now() / 1000);
-    const b64url = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url');
-    const fakeIdToken = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
-      sub: 'dev|mobileuser', nickname: 'mobileuser', 'https://motobingo.app/screen_name': 'mobileuser',
-      'https://motobingo.app/roles': [], exp: now + 86400, iat: now,
-      aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/', nonce: 'n',
-    }) + '.fake';
-    await page.route('**/oauth/token', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-        access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', token_type: 'Bearer', expires_in: 86400,
-      }) });
-    });
-    const key = '@@auth0spajs@@::sgbZkzh0cgUxFTaabQjAZw8WGl371yaC::https://motobingo-api::openid profile email offline_access';
-    const cache = { body: { client_id: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', scope: 'openid profile email offline_access', audience: 'https://motobingo-api', expires_in: 86400, token_type: 'Bearer', decodedToken: { encoded: { header: fakeIdToken.split('.')[0], payload: fakeIdToken.split('.')[1], signature: 'fake' }, header: { alg: 'RS256', typ: 'JWT' }, claims: { __raw: fakeIdToken, sub: 'dev|mobileuser', nickname: 'mobileuser', 'https://motobingo.app/screen_name': 'mobileuser', 'https://motobingo.app/roles': [], exp: now + 86400, iat: now, aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/' }, user: { sub: 'dev|mobileuser', nickname: 'mobileuser', 'https://motobingo.app/screen_name': 'mobileuser', 'https://motobingo.app/roles': [] } } }, expiresAt: now + 86400 };
-    await page.addInitScript(`localStorage.setItem('${key}', ${JSON.stringify(JSON.stringify(cache))});`);
+    await page.setViewportSize({ width: 375, height: 812 });
     await page.route('**/api/v1/**', async route => { await route.continue({ headers: { ...route.request().headers(), 'X-Dev-User': 'mobileuser', 'X-Dev-Role': '' } }); });
-    await page.goto('/');
-    await page.waitForTimeout(2000);
+    await page.goto('/?devUser=mobileuser&devRole=');
+    await page.waitForTimeout(1500);
     await expect(page.locator('.hamburger')).toBeVisible();
     await expect(page.locator('.header-actions.desktop-only')).not.toBeVisible();
   });
@@ -812,24 +802,8 @@ test.describe('Suggestion Modal', () => {
 
   test('clicking add opens modal', async ({ page }) => {
     await apiPut('/active-round', { roundId: testRoundId });
-    // Need to be authenticated to see the button
-    const now = Math.floor(Date.now() / 1000);
-    const b64url = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url');
-    const fakeIdToken = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
-      sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser',
-      'https://motobingo.app/roles': [], exp: now + 86400, iat: now,
-      aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/', nonce: 'n',
-    }) + '.fake';
-    await page.route('**/oauth/token', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-        access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', token_type: 'Bearer', expires_in: 86400,
-      }) });
-    });
-    const key = '@@auth0spajs@@::sgbZkzh0cgUxFTaabQjAZw8WGl371yaC::https://motobingo-api::openid profile email offline_access';
-    const cache = { body: { client_id: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', scope: 'openid profile email offline_access', audience: 'https://motobingo-api', expires_in: 86400, token_type: 'Bearer', decodedToken: { encoded: { header: fakeIdToken.split('.')[0], payload: fakeIdToken.split('.')[1], signature: 'fake' }, header: { alg: 'RS256', typ: 'JWT' }, claims: { __raw: fakeIdToken, sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [], exp: now + 86400, iat: now, aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/' }, user: { sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [] } } }, expiresAt: now + 86400 };
-    await page.addInitScript(`localStorage.setItem('${key}', ${JSON.stringify(JSON.stringify(cache))});`);
     await page.route('**/api/v1/**', async route => { await route.continue({ headers: { ...route.request().headers(), 'X-Dev-User': 'modaluser', 'X-Dev-Role': '' } }); });
-    await page.goto('/');
+    await page.goto('/?devUser=modaluser&devRole=');
     await page.waitForSelector('.suggestions-header', { timeout: 5000 });
     await page.locator('.suggestions-header button', { hasText: 'Add a Suggestion' }).click();
     await expect(page.locator('.modal-overlay')).toBeVisible();
@@ -838,23 +812,8 @@ test.describe('Suggestion Modal', () => {
 
   test('modal closes on cancel', async ({ page }) => {
     await apiPut('/active-round', { roundId: testRoundId });
-    const now = Math.floor(Date.now() / 1000);
-    const b64url = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url');
-    const fakeIdToken = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
-      sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser',
-      'https://motobingo.app/roles': [], exp: now + 86400, iat: now,
-      aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/', nonce: 'n',
-    }) + '.fake';
-    await page.route('**/oauth/token', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-        access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', token_type: 'Bearer', expires_in: 86400,
-      }) });
-    });
-    const key = '@@auth0spajs@@::sgbZkzh0cgUxFTaabQjAZw8WGl371yaC::https://motobingo-api::openid profile email offline_access';
-    const cache = { body: { client_id: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', access_token: 'fake', id_token: fakeIdToken, refresh_token: 'fake-rt', scope: 'openid profile email offline_access', audience: 'https://motobingo-api', expires_in: 86400, token_type: 'Bearer', decodedToken: { encoded: { header: fakeIdToken.split('.')[0], payload: fakeIdToken.split('.')[1], signature: 'fake' }, header: { alg: 'RS256', typ: 'JWT' }, claims: { __raw: fakeIdToken, sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [], exp: now + 86400, iat: now, aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC', iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/' }, user: { sub: 'dev|modaluser', nickname: 'modaluser', 'https://motobingo.app/screen_name': 'modaluser', 'https://motobingo.app/roles': [] } } }, expiresAt: now + 86400 };
-    await page.addInitScript(`localStorage.setItem('${key}', ${JSON.stringify(JSON.stringify(cache))});`);
     await page.route('**/api/v1/**', async route => { await route.continue({ headers: { ...route.request().headers(), 'X-Dev-User': 'modaluser', 'X-Dev-Role': '' } }); });
-    await page.goto('/');
+    await page.goto('/?devUser=modaluser&devRole=');
     await page.waitForSelector('.suggestions-header', { timeout: 5000 });
     await page.locator('.suggestions-header button', { hasText: 'Add a Suggestion' }).click();
     await expect(page.locator('.modal-overlay')).toBeVisible();
