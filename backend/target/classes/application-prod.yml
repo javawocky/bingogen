@@ -1,4 +1,0 @@
-app:
-  cors:
-    origin: https://turkeymxbingo.thefryup.com
-  dev-bypass-auth: false
