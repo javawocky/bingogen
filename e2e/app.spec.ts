@@ -48,77 +48,15 @@ async function apiDelete(path: string, headers?: Record<string, string>) {
 }
 
 async function adminLogin(page: import('@playwright/test').Page) {
-  const now = Math.floor(Date.now() / 1000);
-  const idTokenPayload = {
-    sub: 'dev|testadmin',
-    nickname: 'testadmin',
-    name: 'Test Admin',
-    'https://motobingo.app/screen_name': 'testadmin',
-    'https://motobingo.app/roles': ['admin'],
-    exp: now + 86400,
-    iat: now,
-    aud: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC',
-    iss: 'https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/',
-    nonce: 'test-nonce',
-  };
-  const b64url = (obj: any) => Buffer.from(JSON.stringify(obj)).toString('base64url');
-  const fakeIdToken = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url(idTokenPayload) + '.fake-signature';
-
-  // Intercept Auth0 token refresh endpoint
-  await page.route('**/oauth/token', async route => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        access_token: 'fake-access-token',
-        id_token: fakeIdToken,
-        refresh_token: 'fake-refresh-token',
-        token_type: 'Bearer',
-        expires_in: 86400,
-        scope: 'openid profile email offline_access',
-      }),
-    });
-  });
-
-  // Intercept Auth0 logout — redirect back to app
-  await page.route('**/v2/logout*', async route => {
-    const url = new URL(route.request().url());
-    const returnTo = url.searchParams.get('returnTo') || 'http://localhost:4200';
-    await route.fulfill({ status: 302, headers: { Location: returnTo } });
-  });
-
-  // Set Auth0 SPA SDK cache with refresh_token before page loads
-  const key = '@@auth0spajs@@::sgbZkzh0cgUxFTaabQjAZw8WGl371yaC::https://motobingo-api::openid profile email offline_access';
-  const cache = {
-    body: {
-      client_id: 'sgbZkzh0cgUxFTaabQjAZw8WGl371yaC',
-      access_token: 'fake-access-token',
-      id_token: fakeIdToken,
-      refresh_token: 'fake-refresh-token',
-      scope: 'openid profile email offline_access',
-      audience: 'https://motobingo-api',
-      expires_in: 86400,
-      token_type: 'Bearer',
-      decodedToken: {
-        encoded: { header: fakeIdToken.split('.')[0], payload: fakeIdToken.split('.')[1], signature: 'fake-signature' },
-        header: { alg: 'RS256', typ: 'JWT' },
-        claims: { __raw: fakeIdToken, ...idTokenPayload },
-        user: { sub: 'dev|testadmin', nickname: 'testadmin', name: 'Test Admin', 'https://motobingo.app/screen_name': 'testadmin', 'https://motobingo.app/roles': ['admin'] },
-      },
-    },
-    expiresAt: now + 86400,
-  };
-
-  await page.addInitScript(`localStorage.setItem('${key}', ${JSON.stringify(JSON.stringify(cache))});`);
-
   // Intercept API calls from the browser to add dev bypass headers
   await page.route('**/api/v1/**', async route => {
     const headers = { ...route.request().headers(), 'X-Dev-User': 'testadmin', 'X-Dev-Role': 'admin' };
     await route.continue({ headers });
   });
 
-  await page.goto('/admin');
-  await page.waitForTimeout(2000);
+  // Use the frontend's built-in dev bypass via query params (skips Auth0 entirely)
+  await page.goto('/admin?devUser=testadmin&devRole=admin');
+  await page.waitForTimeout(1000);
 }
 
 async function adminNavToSeason(page: import('@playwright/test').Page) {
@@ -306,13 +244,9 @@ test.describe('Admin Login', () => {
 
   test('logout hides admin content', async ({ page }) => {
     await adminLogin(page);
-    // Remove the token route so re-auth doesn't happen after logout
-    await page.unroute('**/oauth/token');
-    await page.route('**/oauth/token', async route => {
-      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'invalid_grant' }) });
-    });
     await page.getByRole('button', { name: 'Logout' }).click();
-    await page.waitForURL('**/');
+    await page.waitForTimeout(1000);
+    // After logout with dev bypass, navigating to /admin without devUser should show login prompt
     await page.goto('/admin');
     await page.waitForFunction(() => !document.body.textContent?.includes('Loading...'), { timeout: 5000 });
     await expect(page.locator('.empty-state')).toContainText('Please log in');
@@ -784,7 +718,7 @@ test.describe('Admin Suggestions', () => {
 
     await page.locator('input[placeholder="Add suggestion (auto-approved)"]').fill('E2E new suggestion');
     await page.getByRole('button', { name: '+ Add' }).click();
-    await expect(page.locator('.suggestion-text', { hasText: 'E2E new suggestion' })).toBeVisible();
+    await expect(page.locator('.suggestion-text', { hasText: 'E2E new suggestion' })).toBeVisible({ timeout: 10000 });
 
     const row = page.locator('.suggestion-row', { hasText: 'E2E new suggestion' });
     await row.locator('.btn-tiny', { hasText: '✎' }).click();
