@@ -8,7 +8,7 @@
     "build:test": "ng build --configuration test",
     "build:prod": "ng build --configuration production",
     "deploy:test": "ng build --configuration test && wrangler pages deploy dist/bingo/browser --project-name motobingo-test --branch main",
-    "deploy:prod": "ng build --configuration production && wrangler pages deploy dist/bingo/browser --project-name motobingo --branch main",
+    "deploy:prod": "ng build --configuration production && wrangler pages deploy dist/bingo/browser --project-name turkeymxbingo --branch main",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
