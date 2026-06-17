@@ -1,0 +1,29 @@
+server:
+  port: 8787
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/motobingo
+    username: motobingo
+    password: motobingo
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://dev-xlhmy2q3ti2zo0ad.us.auth0.com/
+
+app:
+  auth0:
+    audience: https://motobingo-api
+  cors:
+    origin: http://localhost:4200
+  dev-bypass-auth: true
+  admin-username: admin
+  admin-password: testpass123
+  jwt-secret: testsecret123
