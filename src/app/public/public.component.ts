@@ -138,7 +138,7 @@ export class PublicComponent implements OnInit, OnDestroy {
   startPolling() {
     this.stopPolling();
     if (!this.activeRound || this.activeRound.phase === 'complete') return;
-    const interval = this.activeRound.phase === 'boards' ? 10000 : 30000;
+    const interval = 120000;
     this.pollInterval = setInterval(() => this.refreshRound(), interval);
   }
 
